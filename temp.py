@@ -64,3 +64,33 @@ print (T.shape)
 print ("Q_j:")
 print (Q_j.shape)
 
+n = 3
+x = np.linspace(-3, 2, 6)
+#y1 = np.piecewise(x, [x < 0, x >=0], [0, 1])
+#y2 = np.piecewise(x, [x < 0, x >=0], [1, 0])
+y1 = np.array([0, 1])
+y2 = np.array([1, 0])
+A = np.zeros((0, 2))
+for i in range(0, n):
+    a = np.random.randint(-100, 101, size=2)
+    data = a[0]*y1 + a[1]*y2
+    A = np.append(A, [data], axis=0)
+A = np.append(A, [y1], axis=0)
+A = np.append(A, [y2], axis=0)
+A = np.transpose(A)
+print (A.shape)
+print (A)
+
+#Get back singular vectors
+Q, R = np.linalg.qr(A, mode='reduced')
+print (Q)
+
+s = 30
+k = 10
+l = 5
+
+A = np.matrix('1, 2, 0; 2, 1, 0')
+for i in range(k, s, l):
+    print (A[:, 2:3])
+    print (i)
+    print (i+l-1)
