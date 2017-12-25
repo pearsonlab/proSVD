@@ -25,30 +25,48 @@ def getSvd(A, k, l):
     s = A.shape[1]
     A_init = A[:, 0:k]
 
+    U, S, V = np.linalg.svd(A_init, full_matrices=False)
+    S[S < 1e-10] = 0
+    print (S)
     #Original Q, R
     Q, R = np.linalg.qr(A_init, mode='reduced')
+    print (Q)
+    print (R)
+    U, S, V = np.linalg.svd(R, full_matrices=False)
+    S[S < 1e-10] = 0
+    print (S)
 
-    num = 100
+    num = 10
     t = k
     
     for i in range(0, 100):
+
         if (t == s):
             t = 0
-        #New data
-        C = A[:, t:t+l]
+
+        #New data A+
+        A_plus = A[:, t:t+l]
         t = t+l
 
-        #A+ - Previous discomposition augmented with new data
-        A_plus = np.append(Q, C, axis=1)
+        #A_i - Previous discomposition augmented with new data
+        A_prev = Q.dot(R)
+        A_i = np.append(A_prev, A_plus, axis=1)
         
         #QR decomposition of augmented data matrix, Q_hat, R_hat
-        Q_hat, R_hat = np.linalg.qr(A_plus, mode='reduced')
+        #FIXME : This is not correct?
+        #TODO How to get Q_hat, R_hat??
+        Q_hat, R_hat = np.linalg.qr(A_i, mode='reduced')
+
+        #QR decomposition of additional data
+        Q_T = np.transpose(Q)
+        C = Q_T.dot(A_plus)
+        A_perp = A_plus - Q.dot(C)
+        Q_perp, R_perp = np.linalg.qr(A_perp, mode='reduced')
         
         #SVD of R_hat (B_hat)
         U, diag, V = np.linalg.svd(R_hat, full_matrices=False)
         
         #Orthogonal Procrustes singular basis
-        Q_T = np.transpose(Q)
         M = Q_T.dot(Q_hat) 
         U1 = U[:, 0:k]
         M = M.dot(U1)
@@ -63,6 +81,9 @@ def getSvd(A, k, l):
         #Calculate new Q of this iteration using T
         G1 = U1.dot(T)
         Q = Q_hat.dot(G1)
+        U, S, V = np.linalg.svd(Q, full_matrices=False)
+        S[S < 1e-10] = 0
+        #print (S)
     return Q
 
 
@@ -70,9 +91,26 @@ def getSvd(A, k, l):
 def main():
     A = generatePieceConstData()
     T = getSvd(A, 4, 2)
-    U, S, V = np.linalg.svd(T)
+    U, S, V = np.linalg.svd(T, full_matrices=False)
     print (T.shape)
     print (U.shape)
+    U[U < 1e-10] = 0
+    #print (U)
+    S[S < 1e-10] = 0
+    print (S)
+    U, S, V = np.linalg.svd(A, full_matrices=False)
+    S[S < 1e-10] = 0
+    print (S)
+    #print (U.shape)
+    #print (V.shape)
+    #print (U)
+    #T_t = np.transpose(T)
+    #P = T.dot(T_t)
+    #w, v = np.linalg.eig(P)
+    #w[w < 1e-10] = 0
+    #v[v < 1e-10] = 0
+    #print (w)
+    #print (v)
 
 if __name__ == "__main__":
     main()
