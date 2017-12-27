@@ -27,14 +27,14 @@ def getSvd(A, k, l):
 
     U, S, V = np.linalg.svd(A_init, full_matrices=False)
     S[S < 1e-10] = 0
-    print (S)
+    #print (S)
     #Original Q, R
     Q, R = np.linalg.qr(A_init, mode='reduced')
-    print (Q)
-    print (R)
+    #print (Q)
+    #print (R)
     U, S, V = np.linalg.svd(R, full_matrices=False)
     S[S < 1e-10] = 0
-    print (S)
+    #print (S)
 
     num = 10
     t = k
@@ -52,17 +52,21 @@ def getSvd(A, k, l):
         A_prev = Q.dot(R)
         A_i = np.append(A_prev, A_plus, axis=1)
         
-        #QR decomposition of augmented data matrix, Q_hat, R_hat
-        #FIXME : This is not correct?
-        #TODO How to get Q_hat, R_hat??
-        Q_hat, R_hat = np.linalg.qr(A_i, mode='reduced')
-
         #QR decomposition of additional data
         Q_T = np.transpose(Q)
         C = Q_T.dot(A_plus)
         A_perp = A_plus - Q.dot(C)
-        Q_perp, R_perp = np.linalg.qr(A_perp, mode='reduced')
-        
+        Q_perp, R_perp = np.linalg.qr(A_perp, mode='full')
+
+        #Calculate QR decomposition of augmented data matrix, Q_hat, R_hat
+        #Q_hat is simple appending of Qi-1 and Q_perp
+        #R_hat is based on Figure 3.1 in Baker's thesis
+        Q_hat = np.append(Q, Q_perp, axis=1)
+        R_prev = np.append(R, C, axis=1)
+        tmp = np.zeros((R_perp.shape[0], R.shape[0]))
+        tmp = np.append(tmp, R_perp, axis=1)
+        R_hat = np.append(R_prev, tmp, axis=0)
+
         #SVD of R_hat (B_hat)
         U, diag, V = np.linalg.svd(R_hat, full_matrices=False)
         
@@ -79,7 +83,9 @@ def getSvd(A, k, l):
         T = U_tilda.dot(V_tilda_T)
         
         #Calculate new Q of this iteration using T
-        G1 = U1.dot(T)
+        #Q = Q_hat * U1 * T_transpose
+        T_trans = np.transpose(T)
+        G1 = U1.dot(T_trans)
         Q = Q_hat.dot(G1)
         U, S, V = np.linalg.svd(Q, full_matrices=False)
         S[S < 1e-10] = 0
@@ -92,8 +98,8 @@ def main():
     A = generatePieceConstData()
     T = getSvd(A, 4, 2)
     U, S, V = np.linalg.svd(T, full_matrices=False)
-    print (T.shape)
-    print (U.shape)
+    #print (T.shape)
+    #print (U.shape)
     U[U < 1e-10] = 0
     #print (U)
     S[S < 1e-10] = 0
