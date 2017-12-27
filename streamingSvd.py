@@ -48,12 +48,9 @@ def getSvd(A, k, l):
         A_plus = A[:, t:t+l]
         t = t+l
 
-        #A_i - Previous discomposition augmented with new data
-        A_prev = Q.dot(R)
-        A_i = np.append(A_prev, A_plus, axis=1)
-        
         #QR decomposition of additional data
         Q_T = np.transpose(Q)
+        R_T = np.transpose(R)
         C = Q_T.dot(A_plus)
         A_perp = A_plus - Q.dot(C)
         Q_perp, R_perp = np.linalg.qr(A_perp, mode='full')
@@ -76,20 +73,37 @@ def getSvd(A, k, l):
         M = M.dot(U1)
         
         #Find U_tilda, V_tilda from SVD of M
-        U_tilda, diag_tilda, V1_tilda = np.linalg.svd(M, full_matrices=False)
+        U_tilda, diag_tilda, V_tilda = np.linalg.svd(M, full_matrices=False)
         
         #Find T as product of U_tilda, V_tilda
-        V_tilda_T = np.transpose(V1_tilda)
-        T = U_tilda.dot(V_tilda_T)
+        V_tilda_T = np.transpose(V_tilda)
+        T = U_tilda.dot(V_tilda)
         
         #Calculate new Q of this iteration using T
         #Q = Q_hat * U1 * T_transpose
         T_trans = np.transpose(T)
         G1 = U1.dot(T_trans)
+        G1_T = np.transpose(G1)
         Q = Q_hat.dot(G1)
-        U, S, V = np.linalg.svd(Q, full_matrices=False)
-        S[S < 1e-10] = 0
-        #print (S)
+
+        #Orthogonal Procrustes singular basis
+        M = R_T.dot(G1_T.dot(R_hat))
+        V1 = V[:, 0:k]
+        M = M.dot(V1)
+        
+        #Find U_tilda, V_tilda from SVD of M
+        U_tilda, diag_tilda, V_tilda = np.linalg.svd(M, full_matrices=False)
+        
+        #Find T as product of U_tilda, V_tilda
+        T = U_tilda.dot(V_tilda)
+        
+        #Calculate new R of this iteration using T
+        #R = G_u_Transpose * R_hat * V1 * Tv_transpose
+        T_trans = np.transpose(T)
+        Gv1 = V1.dot(T_trans)
+        R = G1_T.dot(R_hat.dot(Gv1))
+
+
     return Q
 
 
