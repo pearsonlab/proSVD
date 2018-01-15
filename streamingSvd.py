@@ -49,7 +49,7 @@ def getSvd(A, k, l, num_iter):
         
         #Find T as product of U_tilda, V_tilda
         V_tilda_T = np.transpose(V_tilda)
-        T = U_tilda.dot(V_tilda)
+        T = U_tilda.dot(V_tilda_T)
         
         #Calculate new Q of this iteration using T
         #Q = Q_hat * U1 * T_transpose
@@ -67,13 +67,15 @@ def getSvd(A, k, l, num_iter):
         U_tilda, diag_tilda, V_tilda = np.linalg.svd(M, full_matrices=False)
         
         #Find T as product of U_tilda, V_tilda
-        T = U_tilda.dot(V_tilda)
+        V_tilda_T = np.transpose(V_tilda)
+        T = U_tilda.dot(V_tilda_T)
         
         #Calculate new R of this iteration using T
         #R = G_u_Transpose * R_hat * V1 * Tv_transpose
         T_trans = np.transpose(T)
         Gv1 = V1.dot(T_trans)
         R = G1_T.dot(R_hat.dot(Gv1))
+        print (Q)
 
     return Q
 
