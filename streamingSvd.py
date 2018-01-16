@@ -37,7 +37,8 @@ def getSvd(A, k, l, num_iter):
         R_hat = np.append(R_prev, tmp, axis=0)
 
         #SVD of R_hat (B_hat)
-        U, diag, V = np.linalg.svd(R_hat, full_matrices=False)
+        U, diag, V_T = np.linalg.svd(R_hat, full_matrices=False)
+        V = np.transpose(V_T)
         
         #Orthogonal Procrustes singular basis
         M = Q_T.dot(Q_hat) 
@@ -45,10 +46,9 @@ def getSvd(A, k, l, num_iter):
         M = M.dot(U1)
         
         #Find U_tilda, V_tilda from SVD of M
-        U_tilda, diag_tilda, V_tilda = np.linalg.svd(M, full_matrices=False)
+        U_tilda, diag_tilda, V_tilda_T = np.linalg.svd(M, full_matrices=False)
         
         #Find T as product of U_tilda, V_tilda
-        V_tilda_T = np.transpose(V_tilda)
         T = U_tilda.dot(V_tilda_T)
         
         #Calculate new Q of this iteration using T
@@ -64,10 +64,9 @@ def getSvd(A, k, l, num_iter):
         M = M.dot(V1)
         
         #Find U_tilda, V_tilda from SVD of M
-        U_tilda, diag_tilda, V_tilda = np.linalg.svd(M, full_matrices=False)
+        U_tilda, diag_tilda, V_tilda_T = np.linalg.svd(M, full_matrices=False)
         
         #Find T as product of U_tilda, V_tilda
-        V_tilda_T = np.transpose(V_tilda)
         T = U_tilda.dot(V_tilda_T)
         
         #Calculate new R of this iteration using T
@@ -75,9 +74,9 @@ def getSvd(A, k, l, num_iter):
         T_trans = np.transpose(T)
         Gv1 = V1.dot(T_trans)
         R = G1_T.dot(R_hat.dot(Gv1))
-        print (Q)
+
+    U, S, V = np.linalg.svd(R, full_matrices=False)
+    Q = Q.dot(U)
 
     return Q
-
-
 

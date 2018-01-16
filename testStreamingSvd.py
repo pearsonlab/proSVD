@@ -32,21 +32,12 @@ def generatePieceConstData():
     A = np.transpose(A)
     return A
 
-
 def main():
     A = generateTimeSeriesData()
-    T = svd.getSvd(A, 3, 1, 1000)
-    U, S, V = np.linalg.svd(T, full_matrices=False)
-    #print (T.shape)
-    #print (U.shape)
+    T = svd.getSvd(A, 3, 1, 5000)
     print ("Calculated SVD U")
-    #U[U < 1e-05] = 0
-    print (U)
-    #S[S < 1e-04] = 0
-    #print (S)
+    print (T)
     U, S, V = np.linalg.svd(A, full_matrices=False)
-    #S[S < 1e-10] = 0
-    #print (S)
     print ("Numpy SVD U")
     print (U)
 
