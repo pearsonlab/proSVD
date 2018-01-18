@@ -12,12 +12,19 @@ def getSvd(A, k, l, num_iter):
     
     for i in range(0, num_iter):
 
-        if (t == s):
-            t = 0
+        if (t >= s):
+            t = t-s
 
         #New data A+
-        A_plus = A[:, t:t+l]
-        t = t+l
+        #If wrapping around, concatenate last and first sections together
+        if (t+l >= s):
+            A_plus = A[:, t:s]
+            tmp = t+l-s
+            A_plus = np.append(A_plus, A[:,0:tmp], axis=1)
+            t = tmp
+        else:
+            A_plus = A[:, t:t+l]
+            t = t+l
 
         #QR decomposition of additional data
         Q_T = np.transpose(Q)
