@@ -38,7 +38,7 @@ def getSvd(A, k, l, num_iter):
         #R_hat is based on Figure 3.1 in Baker's thesis
         Q_hat = np.append(Q, Q_perp, axis=1)
         R_prev = np.append(R, C, axis=1)
-        tmp = np.zeros((R_perp.shape[0], R.shape[0]))
+        tmp = np.zeros((R_perp.shape[0], R.shape[1]))
         tmp = np.append(tmp, R_perp, axis=1)
 
         R_hat = np.append(R_prev, tmp, axis=0)
