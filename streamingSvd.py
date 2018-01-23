@@ -2,13 +2,13 @@
 
 import numpy as np
 
-def getSvd(A, k, l, num_iter):
+def getSvd(A, k, l1, l, num_iter):
     s = A.shape[1]
-    A_init = A[:, 0:k]
+    A_init = A[:, 0:l1]
 
     Q, R = np.linalg.qr(A_init, mode='reduced')
 
-    t = k
+    t = l1
     
     for i in range(0, num_iter):
 

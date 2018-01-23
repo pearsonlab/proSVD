@@ -34,7 +34,7 @@ def generatePieceConstData():
 
 def main():
     A = generateTimeSeriesData()
-    T = svd.getSvd(A, 3, 5, 1000)
+    T = svd.getSvd(A, 3, 5, 5, 1000)
     print ("Calculated SVD U")
     print (T)
     U, S, V = np.linalg.svd(A, full_matrices=False)
