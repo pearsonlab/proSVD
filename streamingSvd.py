@@ -70,7 +70,14 @@ def getSvd(A, k, l1, l, num_iter):
         #we do not care
         V1 = V[:,0:k]
         G1v, Tv = scipy.linalg.rq(V1)
-        R = G1_T.dot(R_hat.dot(G1v))
+        Tv_T = np.transpose(Tv)
+        #R = G1_T.dot(R_hat.dot(G1v))
+        #Simplifying this expression, we get
+        #R = G1_T * U * diag(S) * V_T * V * Tv_T
+        #R = G1_T * U * diag(S) * Tv_T
+        #But G1_T = T * U1_T => R = T * U1_T * U1 * diag(S) * Tv_T
+        #R = T * diag(S) * Tv_T
+        R = T.dot(np.diag(diag[0:k]).dot(Tv_T))
 
         ##Orthogonal Procrustes singular basis
         #M = R_T.dot(G1_T.dot(R_hat))
