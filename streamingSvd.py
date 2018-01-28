@@ -1,6 +1,7 @@
 #!/home/pritha/anaconda3/bin/python
 
 import numpy as np
+import scipy
 
 def getSvd(A, k, l1, l, num_iter):
     s = A.shape[1]
@@ -65,22 +66,28 @@ def getSvd(A, k, l1, l, num_iter):
         G1_T = np.transpose(G1)
         Q = Q_hat.dot(G1)
 
-        #Orthogonal Procrustes singular basis
-        M = R_T.dot(G1_T.dot(R_hat))
-        V1 = V[:, 0:k]
-        M = M.dot(V1)
-        
-        #Find U_tilda, V_tilda from SVD of M
-        U_tilda, diag_tilda, V_tilda_T = np.linalg.svd(M, full_matrices=False)
-        
-        #Find T as product of U_tilda, V_tilda
-        T = U_tilda.dot(V_tilda_T)
-        
-        #Calculate new R of this iteration using T
-        #R = G_u_Transpose * R_hat * V1 * Tv_transpose
-        T_trans = np.transpose(T)
-        Gv1 = V1.dot(T_trans)
-        R = G1_T.dot(R_hat.dot(Gv1))
+        #Calculation of new R does not need Orthogonal Procrustes since
+        #we do not care
+        V1 = V[:,0:k]
+        G1v, Tv = scipy.linalg.rq(V1)
+        R = G1_T.dot(R_hat.dot(G1v))
+
+        ##Orthogonal Procrustes singular basis
+        #M = R_T.dot(G1_T.dot(R_hat))
+        #V1 = V[:, 0:k]
+        #M = M.dot(V1)
+        #
+        ##Find U_tilda, V_tilda from SVD of M
+        #U_tilda, diag_tilda, V_tilda_T = np.linalg.svd(M, full_matrices=False)
+        #
+        ##Find T as product of U_tilda, V_tilda
+        #T = U_tilda.dot(V_tilda_T)
+        #
+        ##Calculate new R of this iteration using T
+        ##R = G_u_Transpose * R_hat * V1 * Tv_transpose
+        #T_trans = np.transpose(T)
+        #Gv1 = V1.dot(T_trans)
+        #R = G1_T.dot(R_hat.dot(Gv1))
 
     U, S, V = np.linalg.svd(R, full_matrices=False)
     Q = Q.dot(U)
