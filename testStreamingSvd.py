@@ -4,6 +4,7 @@ from scipy import signal
 import numpy as np
 import streamingSvd as svd
 import random
+import os.path
 
 def generateTimeSeriesData():
     n = 1000
@@ -40,7 +41,7 @@ def generateARdata():
     np.random.seed(1)
     A = np.zeros((0,n))
     for num in range(num_rows):
-        a = random.uniform(0,1) 
+        a = random.uniform(0.9,1) 
         x = w = np.random.normal(size=n)
         for t in range(n):
             x[t] = a*x[t-1] + w[t]
@@ -56,14 +57,37 @@ def main():
     U, S, V = np.linalg.svd(A, full_matrices=False)
     print ("Numpy SVD U")
     print (U)
+    num_mismatch = 0
+    for i in range(3):
+        if (not np.allclose(T[:,i], U[:,i], 1e-1, 1e-1) and not np.allclose(T[:,i],-U[:,i],1e-1, 1e-1)):
+            print ("Mismatch in %d column\n"%i)
+            num_mismatch = num_mismatch + 1
+    print ("Number mismatched: %d\n"%num_mismatch)
 
-    A = generateARdata()
+
+    #Check if AR.dat exists, if not create
+    if not os.path.isfile('AR.dat'):
+        print ("Generating and saving data")
+        A = generateARdata()
+        np.savetxt('AR.dat', A)
+
+    #Load AR.dat
+    A = np.loadtxt('AR.dat')
+    rank = 100
     T = svd.getSvd(A, 100, 100, 5, 1000)
     print ("Calculated SVD U")
-    print (T[1])
+    print (T.shape)
     U, S, V = np.linalg.svd(A, full_matrices=False)
     print ("Numpy SVD U")
-    print (U[1])
+    num_mismatch = 0
+    for i in range(rank):
+        if (not np.allclose(T[:,i], U[:,i], 1e-1, 1e-1) and not np.allclose(T[:,i],-U[:,i],1e-1, 1e-1)):
+            print ("Mismatch in %d column\n"%i)
+            for j in range(rank):
+                if (not np.allclose(T[j,i], U[j,i], 1e-1, 1e-1) and not np.allclose(T[j,i],-U[j,i],1e-1, 1e-1)):
+                    print ("Mismatch in %d row %f %f\n"%(j, T[j,i], U[j,i]))
+            num_mismatch = num_mismatch + 1
+    print ("Number mismatched: %d\n"%num_mismatch)
 
     #A = generatePieceConstData()
 
