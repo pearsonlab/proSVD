@@ -34,10 +34,10 @@ def generatePieceConstData():
     A = np.transpose(A)
     return A
 
-def generateARdata():
-    n = 1000
+def generateARdata(num_rows, n):
+    #n = 1000
     #a = 0.6
-    num_rows = 100
+    #num_rows = 100
     np.random.seed(1)
     A = np.zeros((0,n))
     for num in range(num_rows):
@@ -68,16 +68,19 @@ def main():
     #Check if AR.dat exists, if not create
     if not os.path.isfile('AR.dat'):
         print ("Generating and saving data")
-        A = generateARdata()
+        A = generateARdata(1000)
         np.savetxt('AR.dat', A)
 
     #Load AR.dat
-    A = np.loadtxt('AR.dat')
-    rank = 100
-    T = svd.getSvd(A, 100, 100, 5, 1000)
+    #A = np.loadtxt('AR.dat')
+
+    rank = 30
+    A = generateARdata(rank, 1000)
+    #T = svd.getSvd(A, 100, 100, 5, 1000)
+    T = svd.getSvd(A, rank, rank, 5, 1000)
     print ("Calculated SVD U")
     print (T.shape)
-    U, S, V = np.linalg.svd(A, full_matrices=False)
+    U, S, V = np.linalg.svd(A[:,:], full_matrices=False)
     print ("Numpy SVD U")
     num_mismatch = 0
     for i in range(rank):
