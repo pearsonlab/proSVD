@@ -3,7 +3,6 @@
 from scipy import signal
 import numpy as np
 import streamingSvd as svd
-import random
 import os.path
 
 def generateTimeSeriesData():
@@ -35,64 +34,65 @@ def generatePieceConstData():
     return A
 
 def generateARdata(num_rows, n):
-    #n = 1000
-    #a = 0.6
-    #num_rows = 100
     np.random.seed(1)
     A = np.zeros((0,n))
     for num in range(num_rows):
-        a = random.uniform(0.9,1) 
+        a = np.random.uniform(0.9,1) 
         x = w = np.random.normal(size=n)
         for t in range(n):
             x[t] = a*x[t-1] + w[t]
         A = np.append(A, [x], axis=0)
     return A
 
+#Compare two SVD-s
+def compareSvds(T, U, rank):
+    num_mismatch = 0
+    for i in range(rank):
+        if (not np.allclose(T[:,i], U[:,i], 1e-1, 1e-1) and not np.allclose(T[:,i],-U[:,i],1e-1, 1e-1)):
+            #print ("Mismatch in %d column\n"%i)
+            num_mismatch = num_mismatch + 1
+    return num_mismatch
 
 def main():
     A = generateTimeSeriesData()
-    T = svd.getSvd(A, 3, 5, 5, 1000)
-    print ("Calculated SVD U")
-    print (T)
-    U, S, V = np.linalg.svd(A, full_matrices=False)
-    print ("Numpy SVD U")
-    print (U)
-    num_mismatch = 0
-    for i in range(3):
-        if (not np.allclose(T[:,i], U[:,i], 1e-1, 1e-1) and not np.allclose(T[:,i],-U[:,i],1e-1, 1e-1)):
-            print ("Mismatch in %d column\n"%i)
-            num_mismatch = num_mismatch + 1
-    print ("Number mismatched: %d\n"%num_mismatch)
+    T = svd.getSvd(A, 3, 5, 5, 1)
+    U, S, V = np.linalg.svd(A[:,:5], full_matrices=False)
+    num_mismatch = compareSvds(T, U, 3)
+    print ("Number mismatched:%d"%num_mismatch)
 
 
     #Check if AR.dat exists, if not create
-    if not os.path.isfile('AR.dat'):
-        print ("Generating and saving data")
-        A = generateARdata(1000)
-        np.savetxt('AR.dat', A)
+    #if not os.path.isfile('AR.dat'):
+    #    print ("Generating and saving data")
+    #    A = generateARdata(1000)
+    #    np.savetxt('AR.dat', A)
 
     #Load AR.dat
     #A = np.loadtxt('AR.dat')
 
-    rank = 30
+    rank = 100
     A = generateARdata(rank, 1000)
-    #T = svd.getSvd(A, 100, 100, 5, 1000)
-    T = svd.getSvd(A, rank, rank, 5, 1000)
-    print ("Calculated SVD U")
-    print (T.shape)
-    U, S, V = np.linalg.svd(A[:,:], full_matrices=False)
-    print ("Numpy SVD U")
-    num_mismatch = 0
-    for i in range(rank):
-        if (not np.allclose(T[:,i], U[:,i], 1e-1, 1e-1) and not np.allclose(T[:,i],-U[:,i],1e-1, 1e-1)):
-            print ("Mismatch in %d column\n"%i)
-            for j in range(rank):
-                if (not np.allclose(T[j,i], U[j,i], 1e-1, 1e-1) and not np.allclose(T[j,i],-U[j,i],1e-1, 1e-1)):
-                    print ("Mismatch in %d row %f %f\n"%(j, T[j,i], U[j,i]))
-            num_mismatch = num_mismatch + 1
-    print ("Number mismatched: %d\n"%num_mismatch)
+    for j in range(200):
+        max_num = rank+5*j
+        T = svd.getSvd(A, rank, rank, 5, j)
+        if (max_num % 1000 == 0):
+            if (max_num > 1000):
+                max_num = 1000
+            U, S, V = np.linalg.svd(A[:,:max_num], full_matrices=False)
+        else:
+            if (max_num > 1000):
+                t = max_num % 1000
+                #If number of columns more than max, then augment the extra columns at the end of A
+                aug_A = np.append(A, A[:, :t], axis=1)
+            else:
+                #If number of columns less than max, use A till the number of columns
+                aug_A = A[:, :max_num]
+            U, S, V = np.linalg.svd(aug_A[:,:], full_matrices=False)
+        num_mismatch = compareSvds(T, U, rank)
+        print ("%d Number of columns: %d Number mismatched: %d\n"%(j,max_num,num_mismatch))
+        if (num_mismatch != 0):
+            exit()
 
-    #A = generatePieceConstData()
 
 if __name__ == "__main__":
     main()
