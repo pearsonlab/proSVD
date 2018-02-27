@@ -44,6 +44,20 @@ def generateARdata(num_rows, n):
         A = np.append(A, [x], axis=0)
     return A
 
+def generateFakePatientData(rows, cols):
+    t = np.linspace(0, 1, cols, endpoint=False)
+    y_square = signal.square(2 * np.pi * 5 * t)
+    y_saw = signal.sawtooth(2 * np.pi * 5 * t)
+    t = np.linspace(0, 20*np.pi, cols, endpoint=False)
+    y_sin = np.sin(t)
+    A = np.zeros((0, cols))
+    np.random.seed(1)
+    for i in range(0, rows):
+        a = np.random.uniform(0.9,3) 
+        data = a[0]*y_square + a[1]*y_sin + a[2]*y_saw
+        A = np.append(A, [data], axis=0)
+    return A
+
 #Compare two SVD-s
 def compareSvds(T, U, rank):
     num_mismatch = 0
