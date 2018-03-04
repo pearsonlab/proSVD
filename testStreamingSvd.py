@@ -79,35 +79,80 @@ def readMatFile(fileName):
     seq =  np.asscalar(mat[main_key][0][0][4][0])
     return (main_key, data, data_len, freq, channel, seq)
 
-def main():
-    #A = generateTimeSeriesData()
-    #T = svd.getSvd(A, 3, 5, 5, 1)
-    #U, S, V = np.linalg.svd(A[:,:5], full_matrices=False)
-    #num_mismatch = compareSvds(T, U, 3)
-    #print ("Number mismatched:%d"%num_mismatch)
+def testTimeSeriesData():
+    A = generateTimeSeriesData()
+    T = svd.getSvd(A, 3, 5, 5, 1)
+    U, S, V = np.linalg.svd(A[:,:5], full_matrices=False)
+    num_mismatch = compareSvds(T, U, 3)
+    print ("Number mismatched:%d"%num_mismatch)
+
+def testARData():
+    rank = 100
+    A = generateARdata(rank, 1000)
+    for j in range(200):
+        max_num = rank+5*j
+        T = svd.getSvd(A, rank, rank, 5, j)
+        if (max_num % 1000 == 0):
+            if (max_num > 1000):
+                max_num = 1000
+            U, S, V = np.linalg.svd(A[:,:max_num], full_matrices=False)
+        else:
+            if (max_num > 1000):
+                t = max_num % 1000
+                #If number of columns more than max, then augment the extra columns at the end of A
+                aug_A = np.append(A, A[:, :t], axis=1)
+            else:
+                #If number of columns less than max, use A till the number of columns
+                aug_A = A[:, :max_num]
+            U, S, V = np.linalg.svd(aug_A[:,:], full_matrices=False)
+        num_mismatch = compareSvds(T, U, rank)
+        print ("%d Number of columns: %d Number mismatched: %d\n"%(j,max_num,num_mismatch))
+        if (num_mismatch != 0):
+            exit()
+
+def testEegData():
+    main_key, data, data_len, freq, channel, seq = readMatFile('data/Dog_1/Dog_1_preictal_segment_0003.mat')
+    print ("main_key:%s Seq:%d, Freq:%d Hz, data_len:%d num_electrodes:%d,%d num_columns:%d"%(main_key, seq, freq, data_len,channel.shape[0], data.shape[0], data.shape[1]))
+    A = data
+    rank = data.shape[0]
+    num_cols = data.shape[1]
+    per_iter = 5
+    max_iter= int(data.shape[1]/per_iter)
+    print (max_iter)
+
+    #Calculate online SVD
+    j = max_iter+1
+    T = svd.getSvd(A, rank, rank, per_iter, j)
+
+    #Calculate full SVD of the number of columns as covered by online algorithm
+    max_num = rank+5*j
+    if (max_num % num_cols == 0):
+        if (max_num > num_cols):
+            max_num = num_cols
+        U, S, V = np.linalg.svd(A[:,:max_num], full_matrices=False)
+    else:
+        if (max_num > num_cols):
+            t = max_num % num_cols
+            #If number of columns more than max, then augment the extra columns at the end of A
+            aug_A = np.append(A, A[:, :t], axis=1)
+        else:
+            #If number of columns less than max, use A till the number of columns
+            aug_A = A[:, :max_num]
+        U, S, V = np.linalg.svd(aug_A[:,:], full_matrices=False)
+    num_mismatch = compareSvds(T, U, rank)
+    print ("%d Number of columns: %d Number mismatched: %d\n"%(j,max_num,num_mismatch))
 
 
-    #Check if AR.dat exists, if not create
-    #if not os.path.isfile('AR.dat'):
-    #    print ("Generating and saving data")
-    #    A = generateARdata(1000)
-    #    np.savetxt('AR.dat', A)
-
-    #Load AR.dat
-    #A = np.loadtxt('AR.dat')
-
-    #rank = 100
-    #A = generateARdata(rank, 1000)
-    #for j in range(200):
+    #for j in range(max_num):
     #    max_num = rank+5*j
-    #    T = svd.getSvd(A, rank, rank, 5, j)
-    #    if (max_num % 1000 == 0):
-    #        if (max_num > 1000):
-    #            max_num = 1000
+    #    T = svd.getSvd(A, rank, rank, per_iter, j)
+    #    if (max_num % num_cols == 0):
+    #        if (max_num > num_cols):
+    #            max_num = num_cols
     #        U, S, V = np.linalg.svd(A[:,:max_num], full_matrices=False)
     #    else:
-    #        if (max_num > 1000):
-    #            t = max_num % 1000
+    #        if (max_num > num_cols):
+    #            t = max_num % num_cols
     #            #If number of columns more than max, then augment the extra columns at the end of A
     #            aug_A = np.append(A, A[:, :t], axis=1)
     #        else:
@@ -115,12 +160,16 @@ def main():
     #            aug_A = A[:, :max_num]
     #        U, S, V = np.linalg.svd(aug_A[:,:], full_matrices=False)
     #    num_mismatch = compareSvds(T, U, rank)
-    #    print ("%d Number of columns: %d Number mismatched: %d\n"%(j,max_num,num_mismatch))
+    #    if (j % 25 == 0):
+    #        print ("%d Number of columns: %d Number mismatched: %d\n"%(j,max_num,num_mismatch))
     #    if (num_mismatch != 0):
+    #        print ("%d Number of columns: %d Number mismatched: %d\n"%(j,max_num,num_mismatch))
     #        exit()
 
-    main_key, data, data_len, freq, channel, seq = readMatFile('data/Dog_1/Dog_1_preictal_segment_0003.mat')
-    print ("main_key:%s Seq:%d, Freq:%d Hz, data_len:%d num_electrodes:%d,%d num_columns:%d"%(main_key, seq, freq, data_len,channel.shape[0], data.shape[0], data.shape[1]))
+def main():
+    #testTimeSeriesData()
+    #testARData()
+    testEegData()
 
 
 if __name__ == "__main__":
