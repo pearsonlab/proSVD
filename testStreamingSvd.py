@@ -5,6 +5,8 @@ import numpy as np
 import streamingSvd as svd
 import os.path
 import scipy.io as spio
+#import hbt_auth
+#import hbt_dataset
 
 def generateTimeSeriesData():
     n = 1000
@@ -51,11 +53,13 @@ def getData():
     return A
 
 #Compare two SVD-s
-def compareSvds(T, U, rank):
+def compareSvds(T, U, rank, S):
     num_mismatch = 0
     for i in range(rank):
-        if (not np.allclose(T[:,i], U[:,i], 1e-1, 1e-1) and not np.allclose(T[:,i],-U[:,i],1e-1, 1e-1)):
-            #print ("Mismatch in %d column\n"%i)
+        if (S[i] > 1e-5 and not np.allclose(T[:,i], U[:,i], 1e-1, 1e-1) and not np.allclose(T[:,i],-U[:,i],1e-1, 1e-1)):
+            print ("Mismatch in %d column S_val:%d\n"%(i,S[i]))
+            #print (T[:,i])
+            #print (U[:,i])
             num_mismatch = num_mismatch + 1
     return num_mismatch
 
@@ -83,7 +87,7 @@ def testTimeSeriesData():
     A = generateTimeSeriesData()
     T = svd.getSvd(A, 3, 5, 5, 1)
     U, S, V = np.linalg.svd(A[:,:5], full_matrices=False)
-    num_mismatch = compareSvds(T, U, 3)
+    num_mismatch = compareSvds(T, U, 3, S)
     print ("Number mismatched:%d"%num_mismatch)
 
 def testARData():
@@ -105,7 +109,7 @@ def testARData():
                 #If number of columns less than max, use A till the number of columns
                 aug_A = A[:, :max_num]
             U, S, V = np.linalg.svd(aug_A[:,:], full_matrices=False)
-        num_mismatch = compareSvds(T, U, rank)
+        num_mismatch = compareSvds(T, U, rank, S)
         print ("%d Number of columns: %d Number mismatched: %d\n"%(j,max_num,num_mismatch))
         if (num_mismatch != 0):
             exit()
@@ -139,8 +143,9 @@ def testEegData():
             #If number of columns less than max, use A till the number of columns
             aug_A = A[:, :max_num]
         U, S, V = np.linalg.svd(aug_A[:,:], full_matrices=False)
-    num_mismatch = compareSvds(T, U, rank)
+    num_mismatch = compareSvds(T, U, rank, S)
     print ("%d Number of columns: %d Number mismatched: %d\n"%(j,max_num,num_mismatch))
+    print (S)
 
 
     #for j in range(max_num):
@@ -166,10 +171,90 @@ def testEegData():
     #        print ("%d Number of columns: %d Number mismatched: %d\n"%(j,max_num,num_mismatch))
     #        exit()
 
+def testEegData1(s, len1, len2):
+    x = np.loadtxt(s)
+    print (x.shape)
+    data = np.transpose(x)
+
+    A = data
+    rank = data.shape[0]
+    num_cols = data.shape[1]
+    per_iter = 5
+    max_iter= int((data.shape[1]-rank)/per_iter)
+    print (max_iter)
+
+
+    U, S, V = np.linalg.svd(A[:,:len1], full_matrices=False)
+    U1, S1, V1 = np.linalg.svd(A[:,len1:len2], full_matrices=False)
+
+    """
+
+    j = max_iter+1
+    #for j in range(100, max_iter, 1000):
+    for j in range(0, max_iter+1, 100):
+        #Calculate online SVD
+        T = svd.getSvd(A, rank, rank, per_iter, j)
+
+        #Calculate full SVD of the number of columns as covered by online algorithm
+        max_num = rank+5*j
+        if (max_num % num_cols == 0):
+            if (max_num > num_cols):
+                max_num = num_cols
+            U, S, V = np.linalg.svd(A[:,:max_num], full_matrices=False)
+        else:
+            if (max_num > num_cols):
+                t = max_num % num_cols
+                #If number of columns more than max, then augment the extra columns at the end of A
+                aug_A = np.append(A, A[:, :t], axis=1)
+            else:
+                #If number of columns less than max, use A till the number of columns
+                aug_A = A[:, :max_num]
+            U, S, V = np.linalg.svd(aug_A[:,:], full_matrices=False)
+        num_mismatch = compareSvds(T, U, rank, S)
+        print ("%s %d Number of columns: %d Number mismatched: %d aug_A_cols:%d\n"%(s, j,max_num,num_mismatch,aug_A.shape[1]))
+    """
+
+
+def getWindowSvd(s, len1, len2, iter_cols):
+    x = np.loadtxt(s)
+    print (x.shape)
+    data = np.transpose(x)
+
+    A = data
+    rank = data.shape[0]
+    num_cols = data.shape[1]
+    per_iter = 5
+    max_iter= int((data.shape[1]-rank)/per_iter)
+    print (max_iter)
+
+    S_list = np.zeros((rank,1))
+
+    #Get SVD of every iter_cols
+    for j in range(0, num_cols-iter_cols, iter_cols):
+        begin = j
+        end = j + iter_cols - 1
+        if (end > num_cols):
+            break
+        U, S, V = np.linalg.svd(A[:,begin:end], full_matrices=False)
+        S_arr = np.ndarray((rank,1), buffer=S)
+        S_list = np.append(S_list, S_arr, axis=1)
+
+    print (S_list.shape)
+
+    return S_list
+
+
+
 def main():
     #testTimeSeriesData()
     #testARData()
-    testEegData()
+    #testEegData()
+    #testEegData1("/hdd/pritha_data/EDF_data/chb01_03.dat", 766976, 777216)
+    #testEegData1("/hdd/pritha_data/EDF_data/chb01_04.dat", 375552, 382464)
+    #testEegData1("/hdd/pritha_data/EDF_data/chb01_15.dat", 443392, 453632)
+    #testEegData1("/hdd/pritha_data/EDF_data/chb02_19.dat", 862464, 864768)
+
+    S_list = getWindowSvd("/hdd/pritha_data/EDF_data/chb02_19.dat", 862464, 864768, 1000)
 
 
 if __name__ == "__main__":
