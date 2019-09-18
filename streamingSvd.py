@@ -4,12 +4,14 @@ import numpy as np
 import scipy
 
 def getSvd(A, k, l1, l, num_iter, decay_alpha=1, silent=True):
-    s = A.shape[1]
+    n, s = A.shape
     A_init = A[:, 0:l1]
 
     Q, R = np.linalg.qr(A_init, mode='reduced')
 
     t = l1
+    
+    Q_coll = np.zeros((n, n, num_iter))
     
     for i in range(0, num_iter):
 
@@ -46,6 +48,7 @@ def getSvd(A, k, l1, l, num_iter, decay_alpha=1, silent=True):
         
         #SVD of R_hat (B_hat)
         U, diag, V_T = np.linalg.svd(R_hat, full_matrices=False)
+        # decaying (implements forgetting)
         diag = np.power(diag, decay_alpha)
         V = np.transpose(V_T)
         
@@ -95,24 +98,26 @@ def getSvd(A, k, l1, l, num_iter, decay_alpha=1, silent=True):
         #Gv1 = V1.dot(T_trans)
         #R = G1_T.dot(R_hat.dot(Gv1))
         
-        if not silent:
-            print('Q_perp shape:\t' + str(Q_perp.shape))
-            print('R_perp shape:\t' + str(R_perp.shape))
-            print('Aplus shape:\t' + str(A_plus.shape))
-            print('R_hat shape:\t' + str(R_hat.shape))
-            print('U (Rhat) shape:\t' + str(U.shape))
-            print('Q shape :\t' + str(Q.shape))
-            print('Qhat shape :\t' + str(Q_hat.shape))
-            print('U1 shape:\t' + str(U1.shape))
-            print('M shape :\t' + str(M.shape))
-            print('T shape :\t' + str(T.shape))
-            print('G1 shape:\t' + str(G1.shape))
-            print('new Q shape:\t' + str(Q.shape))
-            print('R shape:\t' + str(R.shape))
+        Q_coll[:, :, i] = Q
+        
+#         if not silent:
+#             print('Q_perp shape:\t' + str(Q_perp.shape))
+#             print('R_perp shape:\t' + str(R_perp.shape))
+#             print('Aplus shape:\t' + str(A_plus.shape))
+#             print('R_hat shape:\t' + str(R_hat.shape))
+#             print('U (Rhat) shape:\t' + str(U.shape))
+#             print('Q shape :\t' + str(Q.shape))
+#             print('Qhat shape :\t' + str(Q_hat.shape))
+#             print('U1 shape:\t' + str(U1.shape))
+#             print('M shape :\t' + str(M.shape))
+#             print('T shape :\t' + str(T.shape))
+#             print('G1 shape:\t' + str(G1.shape))
+#             print('new Q shape:\t' + str(Q.shape))
+#             print('R shape:\t' + str(R.shape))
             
             
     U, S, V = np.linalg.svd(R, full_matrices=False)
     Qtrue = Q.dot(U)
 
-    return Qtrue, Q
+    return Qtrue, S, Q_coll
 
