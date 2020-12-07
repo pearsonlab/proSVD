@@ -2,7 +2,7 @@
 
 from scipy import signal
 import numpy as np
-import streamingSvd as svd
+from ssSVD import get_ssSVD as svd
 import os.path
 import scipy.io as spio
 #import hbt_auth

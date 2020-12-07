@@ -1,18 +1,35 @@
-#!/home/pritha/anaconda3/bin/python
+# Function get_ssSVD takes a total data matrix A and returns the computed stable bases over time
 
-import numpy as np
+# Inputs:
+# A - full data matrix, shape (features, time)
+# k - number of basis vectors kept (reduced dimension)
+# l1 - number of columns to initiate with (helpful if this is larger than k)
+# l - number of columns processed at a time (chunk size)
+# num_iter - number of times to iterate through data matrix 
+#            (looping multiple times through same matrix is supported)
+# decay_alpha - power to which singular values are raised. implements forgetting for decay
+# silent - if false, prints sizes of matrices 
+
+# Outputs:
+# Qtcoll - shape (n, min(l, k), num_iter) tensor of all true SVD bases found over num_iters (can discard if true SVD not wanted)
+# Scoll - shape (min(l, k), num_iters) matrix of singular values over num_iters
+# Qcoll - shape (n, min(l, k), num_iter) tensor of all ssSVD bases found over num_iters
+
 import scipy
+import numpy as np
 
-def getSvd(A, k, l1, l, num_iter, decay_alpha=1, silent=True):
+def get_ssSVD(A, k, l1, l, num_iter, decay_alpha=1, silent=True):
     n, s = A.shape
+    
+    dim2_size = min(l1, k)
+    Qcoll = np.zeros((n, dim2_size, num_iter))
+    Qtcoll = np.zeros((n, dim2_size, num_iter))
+    Scoll = np.zeros((dim2_size, num_iter))
+    
     A_init = A[:, 0:l1]
-
     Q, R = np.linalg.qr(A_init, mode='reduced')
-
+    
     t = l1
-    
-    Q_coll = np.zeros((n, n, num_iter))
-    
     for i in range(0, num_iter):
 
         if (t >= s):
@@ -59,9 +76,9 @@ def getSvd(A, k, l1, l, num_iter, decay_alpha=1, silent=True):
         
         #Find U_tilda, V_tilda from SVD of M
         U_tilda, diag_tilda, V_tilda_T = np.linalg.svd(M, full_matrices=False)
-        
         #Find T as product of U_tilda, V_tilda
         T = U_tilda.dot(V_tilda_T)
+        
         #Calculate new Q of this iteration using T
         #Q = Q_hat * U1 * T_transpose
         T_trans = np.transpose(T)
@@ -70,7 +87,7 @@ def getSvd(A, k, l1, l, num_iter, decay_alpha=1, silent=True):
         Q = Q_hat.dot(G1)
         
         #Calculation of new R does not need Orthogonal Procrustes since
-        #we do not care
+        # we do not care
         V1 = V[:,0:k]
         G1v, Tv = scipy.linalg.rq(V1)
         Tv_T = np.transpose(Tv)
@@ -98,26 +115,30 @@ def getSvd(A, k, l1, l, num_iter, decay_alpha=1, silent=True):
         #Gv1 = V1.dot(T_trans)
         #R = G1_T.dot(R_hat.dot(Gv1))
         
-        Q_coll[:, :, i] = Q
+        # Collecting all ssSVD bases Q
+        Qcoll[:, :, i] = Q[:, :k]
         
-#         if not silent:
-#             print('Q_perp shape:\t' + str(Q_perp.shape))
-#             print('R_perp shape:\t' + str(R_perp.shape))
-#             print('Aplus shape:\t' + str(A_plus.shape))
-#             print('R_hat shape:\t' + str(R_hat.shape))
-#             print('U (Rhat) shape:\t' + str(U.shape))
-#             print('Q shape :\t' + str(Q.shape))
-#             print('Qhat shape :\t' + str(Q_hat.shape))
-#             print('U1 shape:\t' + str(U1.shape))
-#             print('M shape :\t' + str(M.shape))
-#             print('T shape :\t' + str(T.shape))
-#             print('G1 shape:\t' + str(G1.shape))
-#             print('new Q shape:\t' + str(Q.shape))
-#             print('R shape:\t' + str(R.shape))
+        # Rotates current basis to true SVD basis, unnecessary if true SVD not wanted 
+        U, S, V = np.linalg.svd(R, full_matrices=False)
+        Scoll[:, i] = S[:k]
+        Qtcoll[:, :, i] = Q.dot(U)
+        
+    if not silent:
+        print('Q_perp shape:\t' + str(Q_perp.shape))
+        print('R_perp shape:\t' + str(R_perp.shape))
+        print('Aplus shape:\t' + str(A_plus.shape))
+        print('R_hat shape:\t' + str(R_hat.shape))
+        print('U (Rhat) shape:\t' + str(U.shape))
+        print('Q shape :\t' + str(Q.shape))
+        print('Qhat shape :\t' + str(Q_hat.shape))
+        print('U1 shape:\t' + str(U1.shape))
+        print('M shape :\t' + str(M.shape))
+        print('T shape :\t' + str(T.shape))
+        print('G1 shape:\t' + str(G1.shape))
+        print('new Q shape:\t' + str(Q.shape))
+        print('R shape:\t' + str(R.shape))
             
-            
-    U, S, V = np.linalg.svd(R, full_matrices=False)
-    Qtrue = Q.dot(U)
 
-    return Qtrue, S, Q_coll
+    return Qtcoll, Scoll, Qcoll
+
 
