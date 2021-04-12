@@ -142,3 +142,77 @@ def get_ssSVD(A, k, l1, l, num_iter, decay_alpha=1, silent=True):
     return Qtcoll, Scoll, Qcoll
 
 
+class proSVD():
+
+    def __init__(self, k, l, window, decay_alpha=1):
+        self.k = k                          # k - number of basis vectors kept (reduced dimension)
+        self.l = l                          # l - number of columns processed at a time (chunk size)
+        self.window = window                # sliding window size..TBD
+        self.decay_alpha = decay_alpha      # power to which singular values are raised. implements forgetting for decay
+
+    def initialize(self, Ainit):
+        ## Ainit just for initialization, so l1 is A.shape[1]
+        n, l1 = Ainit.shape
+        dim2_size = min(l1, self.k)
+
+        ## these may need to be some kind of circular buffer
+        self.Qcoll = np.zeros((n, dim2_size, self.window))
+        self.Qtcoll = np.zeros((n, dim2_size, self.window))
+        self.Scoll = np.zeros((dim2_size, self.window))
+        
+        self.Q, self.R = np.linalg.qr(Ainit, mode='reduced')
+
+        self.t = 0
+        
+    def updateSVD(self, A):
+        ## Update our basis vectors based on a chunk of new data
+        ## Currently assume we get chunks as specificed in self.l
+        ## TODO: use loop over chunk sizes here if requested?
+
+        # QR decomposition of new data
+        C = (self.Q.T).dot(A) 
+        A_perp = A - self.Q.dot(C) 
+        Q_perp, R_perp = np.linalg.qr(A_perp, mode='full') ##NOTE: 'full' depreicated, alias of reduced (?)
+
+        # Calculate QR decomposition of augmented data matrix, Q_hat, R_hat
+        # Q_hat is simple appending of Qi-1 and Q_perp
+        # R_hat is based on Figure 3.1 in Baker's thesis
+        Q_hat = np.concatenate((self.Q, Q_perp), axis=1) ##NOTE: append-->concat
+        R_prev = np.concatenate((self.R, C), axis=1)
+        tmp = np.zeros((R_perp.shape[0], self.R.shape[1]))
+        tmp = np.concatenate((tmp, R_perp), axis=1)
+
+        R_hat = np.concatenate((R_prev, tmp), axis=0)
+        
+        # SVD of R_hat (B_hat)
+        U, diag, V = np.linalg.svd(R_hat, full_matrices=False)
+        # decaying (implements forgetting)
+        diag = np.power(diag, self.decay_alpha)
+        
+        # Orthogonal Procrustes singular basis
+        M = (self.Q.T).dot(Q_hat).dot(U[:,0:self.k]) 
+        
+        # Find U_tilda, V_tilda from SVD of M
+        U_tilda, _, V_tilda_T = np.linalg.svd(M, full_matrices=False)
+        # Find T as product of U_tilda, V_tilda
+        T = U_tilda.dot(V_tilda_T)
+        
+        # Calculate new Q of this iteration using T
+        G1 = (U[:, 0:self.k]).dot(T.T)
+        self.Q = Q_hat.dot(G1)
+        
+        # Calculation of new R does not need Orthogonal Procrustes since
+        # we do not care
+        V1 = (V.T)[:,0:self.k]
+        _, Tv = scipy.linalg.rq(V1) 
+        self.R = T.dot(np.diag(diag[0:self.k]).dot(Tv.T))
+
+        # Collecting all ssSVD bases Q
+        self.Qcoll[:, :, self.t] = self.Q[:, :self.k]
+        
+        # Rotates current basis to true SVD basis, unnecessary if true SVD not wanted 
+        U, S, V = np.linalg.svd(self.R, full_matrices=False)
+        self.Scoll[:, self.t] = S[:self.k]
+        self.Qtcoll[:, :, self.t] = self.Q.dot(U)
+
+        self.t += 1
