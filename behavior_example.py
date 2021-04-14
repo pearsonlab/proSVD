@@ -2,11 +2,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 import scipy.io as sio
 from scipy.ndimage import gaussian_filter1d
-import h5py
-
 import scipy
-from ssSVD import get_ssSVD
-from ssSVD import proSVD
+import h5py
 
 from matplotlib.cm import get_cmap
 cmap = get_cmap('Dark2')
@@ -16,6 +13,8 @@ from IPython.display import HTML
 
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
+
+import proSVD
 
 ## behavior video (mouse face, paws)
 file_loc = '../behave/reconstructed_Cam1_trials2_3.h5'    # from mSM49/SpatialDisc/30-Jul-2018/
@@ -56,14 +55,11 @@ k = 100     # number of singular basis vectors to keep
 num_iters = np.ceil((spikes.shape[1] - l1) / l).astype('int') # num iters to go through once
 print(num_iters)
 
-# run streaming svd - returns Qcoll, shape (n, k, num_iters)
-# Qtcoll, Scoll, Qcoll = get_ssSVD(spikes, k, l1, l, num_iters, decay_alpha=decay)
-
-pro = proSVD(k, l, spikes.shape[1]-l1)
+pro = proSVD(k, history=spikes.shape[1]-l1, trueSVD=True)
 pro.initialize(spikes[:,:l1])
 for i in np.arange(l1,spikes.shape[1]):
     pro.updateSVD(spikes[:,i:i+1])
-Qtcoll, Scoll, Qcoll = (pro.Qtcoll, pro.Scoll, pro.Qcoll)
+Qtcoll, Scoll, Qcoll = (pro.Qts, pro.Ss, pro.Qs)
 
 print('did ssSVD ')
 
