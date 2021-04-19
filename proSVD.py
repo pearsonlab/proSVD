@@ -27,6 +27,10 @@ class proSVD:
         ## make sure A_init.shape[1] >= k
         assert l1 >= self.k, "please init with # of cols >= k"
 
+        # initialize Q and B from QR of A_init, W as I
+        self.Q, self.B = np.linalg.qr(A_init, mode='reduced')
+        # self.W = np.eye(l1)
+
         # TODO: add W history
         if self.history:
             ## these may need to be some kind of circular buffer
@@ -38,10 +42,6 @@ class proSVD:
             if self.trueSVD:
                 self.Qts = np.zeros(self.Qs.shape)
                 self.Ss = np.zeros((dim2_size, self.history))
-
-        # initialize Q and B from QR of A_init, W as I
-        self.Q, self.B = np.linalg.qr(A_init, mode='reduced')
-        # self.W = np.eye(l1)
         self.t = 0
         
     
@@ -87,19 +87,19 @@ class proSVD:
         # QR decomposition of new data
         C = self.Q.T @ A 
         A_perp = A - self.Q @ C 
-        Q_perp, R_perp = np.linalg.qr(A_perp, mode='reduced') ##NOTE: 'full' depreicated, alias of reduced (?)
+        Q_perp, B_perp = np.linalg.qr(A_perp, mode='reduced')
 
         # Calculate QR decomposition of augmented data matrix, Q_hat, R_hat
         # Q_hat is simple appending of Qi-1 and Q_perp
         # R_hat is based on Figure 3.1 in Baker's thesis
-        Q_hat = np.concatenate((self.Q, Q_perp), axis=1) ##NOTE: append-->concat
-        R_prev = np.concatenate((self.B, C), axis=1)
-        tmp = np.zeros((R_perp.shape[0], self.B.shape[1]))
-        tmp = np.concatenate((tmp, R_perp), axis=1)
-        R_hat = np.concatenate((R_prev, tmp), axis=0)
+        Q_hat = np.concatenate((self.Q, Q_perp), axis=1) 
+        B_prev = np.concatenate((self.B, C), axis=1)
+        tmp = np.zeros((B_perp.shape[0], self.B.shape[1]))
+        tmp = np.concatenate((tmp, B_perp), axis=1)
+        B_hat = np.concatenate((B_prev, tmp), axis=0)
         
-        # SVD of R_hat (B_hat)
-        U, diag, V = np.linalg.svd(R_hat, full_matrices=False)
+        # SVD of B_hat
+        U, diag, V = np.linalg.svd(B_hat, full_matrices=False)
         # decaying (implements forgetting)
         diag = np.power(diag, self.decay_alpha)
         
@@ -121,6 +121,13 @@ class proSVD:
         V1 = (V.T)[:,0:self.k]
         _, Tv = rq(V1) 
         self.B = T @ np.diag(diag[:self.k]) @ Tv.T
+        self.B = self.B[:self.k+A.shape[1], :self.k+A.shape[1]]
+
+        # calculation of W: (basis for right singular subspace)
+        # using psuedoinv, should probably not do this
+        # but since B isn't necessarily diagonal, B_inv will change more than scaling
+        # TODO: do we need B_inv? can we do this more efficiently than a pseudoinv?
+        # self.W = np.linalg.pinv(self.B) @ self.Q.T @ A
     
         # Getting W and true SVD basis
         if self.trueSVD:
@@ -128,12 +135,7 @@ class proSVD:
             U, S, V = np.linalg.svd(self.B, full_matrices=False)
             self.Qt = Q_full @ U
             self.S = S
-            
-            # getting W (basis for right singular subpsace)
-            # using psuedoinv, should probably not do this
-            # but since B isn't necessarily diagonal, B_inv will change more than scaling
-            # TODO: do we need B_inv? can we do this more efficiently than a pseudoinv?
-            # self.W = np.linalg.pinv(self.B) @ self.Q.T @ A
+
             
     # getting W (basis for right singular subpsace)
     # TODO: fold this into above
