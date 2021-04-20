@@ -17,7 +17,7 @@ def something():
     num_steps = 500
 
     k = 3
-    l1 = 5
+    l1 = 3
     l = 1
     decay = 1
     num_iters = np.ceil((num_steps - l1) / l).astype('int')
@@ -119,8 +119,6 @@ def something():
     # axbig2.set(ylim=(0, .05))        
 
     # plt.savefig('figures/cosyne2021/fig2.svg', bbox_inches='tight')
-
-    plt.savefig('something.png', bbox_inches='tight')
   
 def test_proSVD():
     n, t = 20, 100
@@ -199,10 +197,11 @@ def test_timing(channel_range, chunk_range, iters=20):
 
 
 def test_W():
-    n, t = 8, 100
+    n, t = 8, 30
     A = np.random.uniform(size=(n, t))
 
     # streaming params
+    # TODO: figure out combinations that work and don't
     k = 2
     l1 = 2
     l = 5
@@ -216,16 +215,16 @@ def test_W():
     pro = proSVD.proSVD(k=k, history=num_iters, trueSVD=True)
     pro.initialize(A_init)
     print(pro.Q.shape, pro.B.shape, pro.W.shape)
-    pro.updateSVD(A[:, l1:l1+l], chunk_size=l)
-    print(pro.Q.shape, pro.B.shape, pro.W.shape)
-    l1 += l
-    pro.updateSVD(A[:, l1:l1+l], chunk_size=l)
-    print(pro.Q.shape, pro.B.shape, pro.W.shape)
-    # for i in np.arange(l1, l1+num_iters, l):
-        # dat = A[:, i:i+l]
-        # pro.updateSVD(dat)
-        # currW = pro.get_W(dat)
 
+    t = l1
+    for i in np.arange(num_iters):
+        dat = A[:, t:t+l]
+        pro.updateSVD(dat)
+        print(pro.W.shape)
+        t += l
+
+    # recon = pro.Q @ pro.B @ pro.W.T
+    # print(np.allclose(recon, A[:, :recon.shape[1]]))
 
 def main():
     # test_proSVD()

@@ -112,32 +112,34 @@ class proSVD:
         ## Constructing orthogonal Gu and Gv from Tu and Tv
         # SVD of B_hat 
         U, diag, V = np.linalg.svd(B_hat, full_matrices=False)
+
         # decaying (implements forgetting)
         diag = np.power(diag, self.decay_alpha)
         
         # Orthgonal Procrustes singular basis for Q (getting Tu)
-        M = self.Q.T @ Q_hat @ U[:, :self.k]
-        U_tilda, _, V_tilda_T = np.linalg.svd(M, full_matrices=False)
+        Mu = self.Q.T @ Q_hat @ U[:, :self.k]
+        U_tilda, _, V_tilda_T = np.linalg.svd(Mu, full_matrices=False)
         Tu = U_tilda @ V_tilda_T
 
         # Orthogonal Procrustes singular basis for W (getting Tv)
-        # TODO: W_j-1 is smaller than W_j/W_hat?
-        # M = self.W.T @ W_hat @ V[:self.k, :]
-        # TODO: redo this to get Tv with orthogonal procrustes
-        V1 = (V.T)[:,0:self.k]
-        _, Tv = rq(V1) 
+        # TODO: W_j-1 is smaller than W_hat?
+        # truncate first L rows of W_hat
+        Mv = self.W.T @ W_hat[l:, :] @ V[:, :self.k]
+        U_tilda, _, V_tilda = np.linalg.svd(Mv, full_matrices=False)
+        Tv = U_tilda @ V_tilda
+
+        # Old way of getting Tv
+        # V1 = (V.T)[:,0:self.k]
+        # _, Tv = rq(V1) 
 
         ## UPDATING Q, B, W
-        G1_u = U[:, :self.k] @ Tu.T
-        Q_full = Q_hat @ G1_u
-        self.Q = Q_full[:, :self.k]
+        Gu_1 = U[:, :self.k] @ Tu.T
+        self.Q = Q_hat @ Gu_1
 
-        B_full = Tu @ np.diag(diag[:self.k]) @ Tv.T
-        self.B = B_full[:self.k, :self.k]
+        self.B = Tu @ np.diag(diag[:self.k]) @ Tv.T
 
-        G1_v = V[:, :self.k] @ Tv.T
-        W_full = W_hat @ G1_v
-        self.W = W_full[:, :self.k]
+        Gv_1 = V[:, :self.k] @ Tv.T
+        self.W = W_hat @ Gv_1
     
         # Getting true SVD basis
         if self.trueSVD:
@@ -145,9 +147,3 @@ class proSVD:
             self.Qt = self.Q @ U
             self.S = S
             self.Wt = self.W @ V
-
-            
-    # getting W (basis for right singular subpsace)
-    # TODO: fold this into above
-    # def get_W(self, data):
-    #     return np.linalg.pinv(self.B) @ self.Q.T @ data
