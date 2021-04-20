@@ -22,26 +22,29 @@ class proSVD:
     def initialize(self, A_init):
         ## Ainit just for initialization, so l1 is A.shape[1]
         n, l1 = A_init.shape
-        dim2_size = min(l1, self.k)
 
         ## make sure A_init.shape[1] >= k
         assert l1 >= self.k, "please init with # of cols >= k"
 
         # initialize Q and B from QR of A_init, W as I
-        self.Q, self.B = np.linalg.qr(A_init, mode='reduced')
-        # self.W = np.eye(l1)
+        Q, B = np.linalg.qr(A_init, mode='reduced')
+        self.Q = Q[:, :self.k]
+        self.B = B[:self.k, :l1]
+        self.W = np.eye(l1)
 
         # TODO: add W history
         if self.history:
             ## these may need to be some kind of circular buffer
             ## for now assuming self.history = A_full.shape[1] - l1 (if not 0)
-            self.Qs = np.zeros((n, dim2_size, self.history))
-            # self.Ws = np.zeros((dim2_size, self.w_len, self.history))
+            self.Qs = np.zeros((n, self.k, self.history))
+
+            # this might need to be different?
+            self.Ws = np.zeros((self.k, self.w_len, self.history))
 
             # keeping true singular vectors/values
             if self.trueSVD:
                 self.Qts = np.zeros(self.Qs.shape)
-                self.Ss = np.zeros((dim2_size, self.history))
+                self.Ss = np.zeros((self.k, self.history))
         self.t = 0
         
     
@@ -74,70 +77,77 @@ class proSVD:
                 if self.trueSVD:
                     self.Qts[:, :, self.t] = self.Qt
                     self.Ss[:, self.t] = self.S
+                    # self.Wts[:, :, self.t] = self.Wt
 
             self.t += 1
         
     
     # internal func to do a single iter of basis update given some data A
     def _updateSVD(self, A):
+        _, l = A.shape
         ## Update our basis vectors based on a chunk of new data
         ## Currently assume we get chunks as specificed in self.l
-        ## TODO: use loop over chunk sizes here if requested?
-
-        # QR decomposition of new data
+        ## QR decomposition of new data
         C = self.Q.T @ A 
         A_perp = A - self.Q @ C 
         Q_perp, B_perp = np.linalg.qr(A_perp, mode='reduced')
 
         # Calculate QR decomposition of augmented data matrix, Q_hat, R_hat
         # Q_hat is simple appending of Qi-1 and Q_perp
-        # R_hat is based on Figure 3.1 in Baker's thesis
         Q_hat = np.concatenate((self.Q, Q_perp), axis=1) 
+        
+        # R_hat is based on Figure 3.1 in Baker's thesis
         B_prev = np.concatenate((self.B, C), axis=1)
         tmp = np.zeros((B_perp.shape[0], self.B.shape[1]))
         tmp = np.concatenate((tmp, B_perp), axis=1)
         B_hat = np.concatenate((B_prev, tmp), axis=0)
+
+        # W_hat is I_l appended as block to W
+        I_l = np.eye(l)
+        right_block = np.zeros((self.W.shape[0], l))
+        bottom_block = np.zeros((l, self.W.shape[1]))
+        W_hat = np.block([[self.W, right_block], 
+                          [bottom_block, I_l]])
         
-        # SVD of B_hat
+        ## Constructing orthogonal Gu and Gv from Tu and Tv
+        # SVD of B_hat 
         U, diag, V = np.linalg.svd(B_hat, full_matrices=False)
         # decaying (implements forgetting)
         diag = np.power(diag, self.decay_alpha)
         
-        # Orthogonal Procrustes singular basis
-        M = self.Q.T @ Q_hat @ U[:,0:self.k]
-        
-        # Find U_tilda, V_tilda from SVD of M
+        # Orthgonal Procrustes singular basis for Q (getting Tu)
+        M = self.Q.T @ Q_hat @ U[:, :self.k]
         U_tilda, _, V_tilda_T = np.linalg.svd(M, full_matrices=False)
-        # Find T as product of U_tilda, V_tilda
-        T = U_tilda @ V_tilda_T
-        
-        # Calculate new Q of this iteration using T
-        G1 = U[:, :self.k] @ T.T
-        Q_full = Q_hat @ G1
-        self.Q = Q_full[:, :self.k]
+        Tu = U_tilda @ V_tilda_T
 
-        # Calculation of new R does not need Orthogonal Procrustes since
-        # we do not care
+        # Orthogonal Procrustes singular basis for W (getting Tv)
+        # TODO: W_j-1 is smaller than W_j/W_hat?
+        # M = self.W.T @ W_hat @ V[:self.k, :]
+        # TODO: redo this to get Tv with orthogonal procrustes
         V1 = (V.T)[:,0:self.k]
         _, Tv = rq(V1) 
-        self.B = T @ np.diag(diag[:self.k]) @ Tv.T
-        self.B = self.B[:self.k+A.shape[1], :self.k+A.shape[1]]
 
-        # calculation of W: (basis for right singular subspace)
-        # using psuedoinv, should probably not do this
-        # but since B isn't necessarily diagonal, B_inv will change more than scaling
-        # TODO: do we need B_inv? can we do this more efficiently than a pseudoinv?
-        # self.W = np.linalg.pinv(self.B) @ self.Q.T @ A
+        ## UPDATING Q, B, W
+        G1_u = U[:, :self.k] @ Tu.T
+        Q_full = Q_hat @ G1_u
+        self.Q = Q_full[:, :self.k]
+
+        B_full = Tu @ np.diag(diag[:self.k]) @ Tv.T
+        self.B = B_full[:self.k, :self.k]
+
+        G1_v = V[:, :self.k] @ Tv.T
+        W_full = W_hat @ G1_v
+        self.W = W_full[:, :self.k]
     
-        # Getting W and true SVD basis
+        # Getting true SVD basis
         if self.trueSVD:
-            # rotating to true basis
             U, S, V = np.linalg.svd(self.B, full_matrices=False)
-            self.Qt = Q_full @ U
+            self.Qt = self.Q @ U
             self.S = S
+            self.Wt = self.W @ V
 
             
     # getting W (basis for right singular subpsace)
     # TODO: fold this into above
-    def get_W(self, data):
-        return np.linalg.pinv(self.B) @ self.Q.T @ data
+    # def get_W(self, data):
+    #     return np.linalg.pinv(self.B) @ self.Q.T @ data
