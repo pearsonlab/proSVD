@@ -30,7 +30,7 @@ class proSVD:
         Q, B = np.linalg.qr(A_init, mode='reduced')
         self.Q = Q[:, :self.k]
         self.B = B[:self.k, :l1]
-        self.W = np.eye(l1)
+        # self.W = np.eye(l1)
 
         # TODO: add W history
         if self.history:
@@ -39,7 +39,7 @@ class proSVD:
             self.Qs = np.zeros((n, self.k, self.history))
 
             # this might need to be different?
-            self.Ws = np.zeros((self.k, self.w_len, self.history))
+            # self.Ws = np.zeros((self.k, self.w_len, self.history))
 
             # keeping true singular vectors/values
             if self.trueSVD:
@@ -103,11 +103,11 @@ class proSVD:
         B_hat = np.concatenate((B_prev, tmp), axis=0)
 
         # W_hat is I_l appended as block to W
-        I_l = np.eye(l)
-        right_block = np.zeros((self.W.shape[0], l))
-        bottom_block = np.zeros((l, self.W.shape[1]))
-        W_hat = np.block([[self.W, right_block], 
-                          [bottom_block, I_l]])
+        # I_l = np.eye(l)
+        # right_block = np.zeros((self.W.shape[0], l))
+        # bottom_block = np.zeros((l, self.W.shape[1]))
+        # W_hat = np.block([[self.W, right_block], 
+        #                   [bottom_block, I_l]])
         
         ## Constructing orthogonal Gu and Gv from Tu and Tv
         # SVD of B_hat 
@@ -124,13 +124,13 @@ class proSVD:
         # Orthogonal Procrustes singular basis for W (getting Tv)
         # TODO: W_j-1 is smaller than W_hat?
         # truncate first L rows of W_hat
-        Mv = self.W.T @ W_hat[l:, :] @ V[:, :self.k]
-        U_tilda, _, V_tilda = np.linalg.svd(Mv, full_matrices=False)
-        Tv = U_tilda @ V_tilda
+        # Mv = self.W.T @ W_hat[l:, :] @ V[:, :self.k]
+        # U_tilda, _, V_tilda = np.linalg.svd(Mv, full_matrices=False)
+        # Tv = U_tilda @ V_tilda
 
         # Old way of getting Tv
-        # V1 = (V.T)[:,0:self.k]
-        # _, Tv = rq(V1) 
+        V1 = (V.T)[:,0:self.k]
+        _, Tv = rq(V1) 
 
         ## UPDATING Q, B, W
         Gu_1 = U[:, :self.k] @ Tu.T
@@ -138,12 +138,12 @@ class proSVD:
 
         self.B = Tu @ np.diag(diag[:self.k]) @ Tv.T
 
-        Gv_1 = V[:, :self.k] @ Tv.T
-        self.W = W_hat @ Gv_1
+        # Gv_1 = V[:, :self.k] @ Tv.T
+        # self.W = W_hat @ Gv_1
     
         # Getting true SVD basis
         if self.trueSVD:
             U, S, V = np.linalg.svd(self.B, full_matrices=False)
             self.Qt = self.Q @ U
             self.S = S
-            self.Wt = self.W @ V
+            # self.Wt = self.W @ V
