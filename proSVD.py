@@ -40,7 +40,11 @@ class proSVD:
         
         self.Q = Q[:, :self.k]
         self.B = B[:self.k, :l1]
+<<<<<<< HEAD
         # self.W = np.eye(l1) # TODO: figure out if we want W
+=======
+        # self.W = np.eye(l1)
+>>>>>>> 39db6206fe683089720eab7f93129ac8b8f8db61
 
         if self.history:
             ## these may need to be some kind of circular buffer
@@ -143,7 +147,11 @@ class proSVD:
         # U_tilda, _, V_tilda = np.linalg.svd(Mv, full_matrices=False)
         # Tv = U_tilda @ V_tilda
 
+<<<<<<< HEAD
         # simpler way of getting Tv
+=======
+        # Old way of getting Tv
+>>>>>>> 39db6206fe683089720eab7f93129ac8b8f8db61
         V1 = (V.T)[:,0:self.k]
         _, Tv = rq(V1) 
 
@@ -152,6 +160,11 @@ class proSVD:
         # Gv_1 = V[:, :self.k] @ Tv.T
         self.Q = Q_hat @ Gu_1
         self.B = Tu @ np.diag(diag[:self.k]) @ Tv.T
+<<<<<<< HEAD
+=======
+
+        # Gv_1 = V[:, :self.k] @ Tv.T
+>>>>>>> 39db6206fe683089720eab7f93129ac8b8f8db61
         # self.W = W_hat @ Gv_1
     
         # Getting true SVD basis
@@ -159,4 +172,8 @@ class proSVD:
             U, S, V = np.linalg.svd(self.B, full_matrices=False)
             self.U = self.Q @ U
             self.S = S
+<<<<<<< HEAD
             # self.Wt = self.W @ V
+=======
+            # self.Wt = self.W @ V
+>>>>>>> 39db6206fe683089720eab7f93129ac8b8f8db61
