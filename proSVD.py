@@ -1,3 +1,5 @@
+# TODO: Clean up
+
 import numpy as np
 from scipy.linalg import rq
 
@@ -7,16 +9,18 @@ class proSVD:
     # w_len        int     - window length
     # w_shift      int     - how many cols does the window shift by?
     # decay_alpha  float   - forgetting parameter (no memory = 0 < alpha <= 1 = no forgetting)
-    # trueSVD      bool    - whether or not basis should be rotated to true SVD basis (stored as attribute Qt)
+    # trueSVD      bool    - whether or not basis should be rotated to true SVD basis (stored as attribute U)
     # history      int     - 0 indicates no history will be kept, 
     #                       >0 indicates how many bases/singular values to keep
-    def __init__(self, k, w_len=1, w_shift=1, decay_alpha=1, trueSVD=False, history=0):
+    def __init__(self, k, w_len=1, w_shift=1, decay_alpha=1, trueSVD=False, history=0, newMu=False):
         self.k = k
         self.w_len = w_len
         self.w_shift = w_shift
         self.decay_alpha = decay_alpha
         self.trueSVD = trueSVD
         self.history = history
+        self.newMu = newMu
+        self.proj_mean = np.zeros((k))  # for global mean of projected data (to get projected variance)
 
     
     def initialize(self, A_init):
@@ -26,26 +30,33 @@ class proSVD:
         ## make sure A_init.shape[1] >= k
         assert l1 >= self.k, "please init with # of cols >= k"
 
+        self.global_mean = A_init.mean(axis=1) # for global mean of observed data (for demeaning before projecting)
+
         # initialize Q and B from QR of A_init, W as I
         Q, B = np.linalg.qr(A_init, mode='reduced')
+        ## TODO: other init strategies?
+        # u, s, v = np.linalg.svd(A_init, full_matrices=False)
+        # Q, B = u, np.diag(s) @ v
+        
         self.Q = Q[:, :self.k]
         self.B = B[:self.k, :l1]
-        self.W = np.eye(l1)
+        # self.W = np.eye(l1) # TODO: figure out if we want W
 
-        # TODO: add W history
         if self.history:
             ## these may need to be some kind of circular buffer
             ## for now assuming self.history = A_full.shape[1] - l1 (if not 0)
-            self.Qs = np.zeros((n, self.k, self.history))
+            self.Qs = np.zeros((n, self.k, self.history+1))
+            self.Qs[:, :, 0] = self.Q # init with first Q
 
             # this might need to be different?
-            self.Ws = np.zeros((self.k, self.w_len, self.history))
+            # self.Ws = np.zeros((self.k, self.w_len, self.history))
 
             # keeping true singular vectors/values
             if self.trueSVD:
-                self.Qts = np.zeros(self.Qs.shape)
-                self.Ss = np.zeros((self.k, self.history))
-        self.t = 0
+                self.Us = np.zeros(self.Qs.shape)
+                self.Us[:, :, 0] = self.Q
+                self.Ss = np.zeros((self.k, self.history+1))
+        self.t = 1
         
     
     # update the SVD with some given data
@@ -68,14 +79,14 @@ class proSVD:
             A_plus = A[:, t:t+l]
             t = t+l
 
-            # ACTUAL UPDATE HERE
+            # Actual update
             self._updateSVD(A_plus)
 
             if self.history:
                 self.Qs[:, :, self.t] = self.Q
                 # self.Ws[:, :, self.t] = self.W
                 if self.trueSVD:
-                    self.Qts[:, :, self.t] = self.Qt
+                    self.Us[:, :, self.t] = self.U
                     self.Ss[:, self.t] = self.S
                     # self.Wts[:, :, self.t] = self.Wt
 
@@ -103,47 +114,49 @@ class proSVD:
         B_hat = np.concatenate((B_prev, tmp), axis=0)
 
         # W_hat is I_l appended as block to W
-        I_l = np.eye(l)
-        right_block = np.zeros((self.W.shape[0], l))
-        bottom_block = np.zeros((l, self.W.shape[1]))
-        W_hat = np.block([[self.W, right_block], 
-                          [bottom_block, I_l]])
+        # I_l = np.eye(l)
+        # right_block = np.zeros((self.W.shape[0], l))
+        # bottom_block = np.zeros((l, self.W.shape[1]))
+        # W_hat = np.block([[self.W, right_block], 
+        #                   [bottom_block, I_l]])
         
         ## Constructing orthogonal Gu and Gv from Tu and Tv
         # SVD of B_hat 
         U, diag, V = np.linalg.svd(B_hat, full_matrices=False)
 
         # decaying (implements forgetting)
-        diag = np.power(diag, self.decay_alpha)
+        # diag = np.power(diag, self.decay_alpha)
+        diag *= self.decay_alpha
         
         # Orthgonal Procrustes singular basis for Q (getting Tu)
-        Mu = self.Q.T @ Q_hat @ U[:, :self.k]
+        # Mu = self.Q.T @ Q_hat @ U[:, :self.k]
+        # faster getting Mu - just the first k rows of U1??
+        Mu = U[:self.k, :self.k]
+
         U_tilda, _, V_tilda_T = np.linalg.svd(Mu, full_matrices=False)
         Tu = U_tilda @ V_tilda_T
 
         # Orthogonal Procrustes singular basis for W (getting Tv)
         # TODO: W_j-1 is smaller than W_hat?
         # truncate first L rows of W_hat
-        Mv = self.W.T @ W_hat[l:, :] @ V[:, :self.k]
-        U_tilda, _, V_tilda = np.linalg.svd(Mv, full_matrices=False)
-        Tv = U_tilda @ V_tilda
+        # Mv = self.W.T @ W_hat[l:, :] @ V[:, :self.k]
+        # U_tilda, _, V_tilda = np.linalg.svd(Mv, full_matrices=False)
+        # Tv = U_tilda @ V_tilda
 
-        # Old way of getting Tv
-        # V1 = (V.T)[:,0:self.k]
-        # _, Tv = rq(V1) 
+        # simpler way of getting Tv
+        V1 = (V.T)[:,0:self.k]
+        _, Tv = rq(V1) 
 
-        ## UPDATING Q, B, W
+        ## UPDATING Q, B
         Gu_1 = U[:, :self.k] @ Tu.T
+        # Gv_1 = V[:, :self.k] @ Tv.T
         self.Q = Q_hat @ Gu_1
-
         self.B = Tu @ np.diag(diag[:self.k]) @ Tv.T
-
-        Gv_1 = V[:, :self.k] @ Tv.T
-        self.W = W_hat @ Gv_1
+        # self.W = W_hat @ Gv_1
     
         # Getting true SVD basis
         if self.trueSVD:
             U, S, V = np.linalg.svd(self.B, full_matrices=False)
-            self.Qt = self.Q @ U
+            self.U = self.Q @ U
             self.S = S
-            self.Wt = self.W @ V
+            # self.Wt = self.W @ V
