@@ -10,7 +10,7 @@ from scipy import io as sio
 from scipy.ndimage import gaussian_filter1d
 from sklearn import random_projection as rp
 
-import proSVD
+from proSVD.proSVD import proSVD
 
 #%% loading processed matlab data
 # one mouse

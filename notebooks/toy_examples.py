@@ -5,7 +5,7 @@ from matplotlib import transforms
 from matplotlib import cm; cmap = cm.Dark2
 from scipy.ndimage import gaussian_filter1d
 
-from proSVD import proSVD
+from proSVD.proSVD import proSVD
 
 #%% switching between different spectral regimes
 np.random.seed(100)

@@ -2,11 +2,12 @@
 import time
 import numpy as np
 import matplotlib.pyplot as plt
+from numpy.lib import utils
 import scipy.io as sio
 
 import mdp # for incremental sfa, ica, pca
-from proSVD import proSVD
-from utils import get_derivs, get_dist_to_final
+from proSVD.proSVD import proSVD
+from proSVD.utils import get_derivs
 
 # %% data from http://ieeg-swez.ethz.ch/
 # sampled at 512 hz, each file is 3 mins before seizure, seizure, 3 mins after

@@ -5,8 +5,9 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import h5py
 
-import proSVD
-from utils import get_streamingSVD, make_movie
+from proSVD.proSVD import proSVD
+from proSVD.utils import get_streamingSVD, make_movie
+
 #%%
 datadir = '/home/pgupta/mouse_videos/musall2019/' 
 # sess = 'reconstructed_Cam1_init.h5'
@@ -50,6 +51,6 @@ plt.show()
 # animating
 fig, ax = plt.subplots()
 # make_movie(all_frames, fig, ax, fn='videos/musall_real.mp4')
-make_movie(Qs[:, 1, :], w, h, fig, ax, fn='videos/musall_Qs.mp4')
+make_movie(pro.Qs[:, 1, :], w, h, fig, ax, fn='videos/musall_Qs.mp4')
 # print('done')
 # %%

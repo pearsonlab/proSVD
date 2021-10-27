@@ -1,4 +1,5 @@
-# TODO: Clean up
+# TODO: add preprocessing functions to proSVD? 
+#       demeaning, normalizing, filters, etc.
 
 import numpy as np
 from scipy.linalg import rq

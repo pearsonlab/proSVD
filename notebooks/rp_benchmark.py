@@ -10,8 +10,8 @@ from sklearn.metrics.pairwise import euclidean_distances
 from scipy.stats import sem
 from scipy.spatial.distance import pdist
 
-import proSVD
-from utils import embed_data, generate_stable_LDS, get_stable_dynamics_mat
+from proSVD.proSVD import proSVD
+from proSVD.utils import embed_data, generate_stable_LDS, get_stable_dynamics_mat
 
 np.set_printoptions(precision=4)
 #%% reduction functions
