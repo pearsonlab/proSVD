@@ -6,6 +6,7 @@ import scipy.io as sio
 
 import mdp # for incremental sfa, ica, pca
 from proSVD import proSVD
+from utils import get_derivs, get_dist_to_final
 
 # %% data from http://ieeg-swez.ethz.ch/
 # sampled at 512 hz, each file is 3 mins before seizure, seizure, 3 mins after
@@ -39,23 +40,39 @@ ax.plot(np.cumsum(var) / np.sum(var))
 
 # %% proSVD
 %%time
-k = 10
-l1 = 100
-l = 100
-num_iters = 1000 # int( (data.shape[1] - l1) / l)
+# PROTOTYPE FOR DOING ANALYSIS ON ANY DATASET
+# params
+k = 10  # reduced dim
+l = 50    # num cols processed per iter
+decay = 1 # 'forgetting' to track nonstationarity. 1 = no forgetting
+l1 = k   # num cols init
+num_iters = np.floor((data.shape[1] - l1) / l).astype('int') # num iters to go through data once
+update_times = np.arange(1, num_iters) * l # index of when updates happen
 
-pro = proSVD(k, trueSVD=True, history=num_iters, newMu=True)
+# init
+A_init = data[:, :l1]
+pro = proSVD(k, history=num_iters, trueSVD=True)
+pro.initialize(A_init)
 
-pro.initialize(data[:, :l1])
-t = l1
-times = []
-for i in range(num_iters):
-    start = time.time()
-    pro.updateSVD(data[:, t:t+l])
-    times.append(time.time() - start)
-    t += l
+# for svd and prosvd projections, variance explained
+projs = [np.zeros((k, data.shape[1]-l1)) for i in range(2)]  # subtract l1 - init proj
+frac_vars = [np.zeros(projs[i].shape) for i in range(2)]
+# derivatives
+derivs = np.zeros((k, num_iters))
 
-print('proSVD:\t', np.mean(times)*1000, np.std(times)*1000)
+# run proSVD online
+for i, t in enumerate(update_times): 
+    dat = data[:, t:t+l]
+    pro.updateSVD(dat)
+    # getting proj and variance explained
+    for j, basis in enumerate([pro.U, pro.Q]):
+        projs[j][:, t:t+l] = basis.T @ dat
+        curr_proj_vars = projs[j][:, :t-l1].var(axis=1)[:, np.newaxis]
+        total_vars = data[:, :t].var(axis=1)
+        frac_vars[j][:, t:t+l] = curr_proj_vars / total_vars.sum()
+    # proSVD basis derivatives
+    derivs[:, i] = np.linalg.norm(pro.curr_diff, axis=0)
+
 
 # %% incSFA (emphasis on SLOW)
 %%time
@@ -109,8 +126,8 @@ derivs_ccipca = np.linalg.norm(Q_ccipca[:, :, 1:] - Q_ccipca[:, :, :-1], axis=0)
 ax2.plot(derivs_ccipca[100:, :], alpha=0.2)
 
 
-derivsQ = pro.get_derivs()
-derivsU = pro.get_derivs(trueSVD=True)
+derivsQ = get_derivs(pro)
+derivsU = get_derivs(pro, trueSVD=True)
 ax3.plot(derivsQ[100:], alpha=0.2)
 # plt.plot(derivsU, color='gray', alpha=0.2, ls='--')
 
