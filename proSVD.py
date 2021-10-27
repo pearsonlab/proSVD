@@ -12,14 +12,14 @@ class proSVD:
     # trueSVD      bool    - whether or not basis should be rotated to true SVD basis (stored as attribute U)
     # history      int     - 0 indicates no history will be kept, 
     #                       >0 indicates how many bases/singular values to keep
-    def __init__(self, k, w_len=1, w_shift=1, decay_alpha=1, trueSVD=False, history=0, newMu=False):
+    def __init__(self, k, w_len=1, w_shift=1, decay_alpha=1, trueSVD=False, history=0, track_diff=True):
         self.k = k
         self.w_len = w_len
         self.w_shift = w_shift
         self.decay_alpha = decay_alpha
         self.trueSVD = trueSVD
         self.history = history
-        self.newMu = newMu
+        self.track_diff = track_diff
         self.proj_mean = np.zeros((k))  # for global mean of projected data (to get projected variance)
 
     
@@ -40,11 +40,11 @@ class proSVD:
         
         self.Q = Q[:, :self.k]
         self.B = B[:self.k, :l1]
-<<<<<<< HEAD
         # self.W = np.eye(l1) # TODO: figure out if we want W
-=======
-        # self.W = np.eye(l1)
->>>>>>> 39db6206fe683089720eab7f93129ac8b8f8db61
+        if self.trueSVD:
+            U_init, S_init, _ = np.linalg.svd(A_init, full_matrices=False)
+            self.U = U_init[:, :self.k]
+            self.S = S_init[:self.k]
 
         if self.history:
             ## these may need to be some kind of circular buffer
@@ -58,8 +58,9 @@ class proSVD:
             # keeping true singular vectors/values
             if self.trueSVD:
                 self.Us = np.zeros(self.Qs.shape)
-                self.Us[:, :, 0] = self.Q
+                self.Us[:, :, 0] = self.U
                 self.Ss = np.zeros((self.k, self.history+1))
+                self.Ss[:, 0] = self.S
         self.t = 1
         
     
@@ -83,8 +84,13 @@ class proSVD:
             A_plus = A[:, t:t+l]
             t = t+l
 
-            # Actual update
+            if self.track_diff:
+                Q_prev = self.Q
+            # ------ Update ------ #
             self._updateSVD(A_plus)
+            # -------------------- #
+            if self.track_diff:
+                self.curr_diff = Q_prev - self.Q
 
             if self.history:
                 self.Qs[:, :, self.t] = self.Q
@@ -147,11 +153,7 @@ class proSVD:
         # U_tilda, _, V_tilda = np.linalg.svd(Mv, full_matrices=False)
         # Tv = U_tilda @ V_tilda
 
-<<<<<<< HEAD
         # simpler way of getting Tv
-=======
-        # Old way of getting Tv
->>>>>>> 39db6206fe683089720eab7f93129ac8b8f8db61
         V1 = (V.T)[:,0:self.k]
         _, Tv = rq(V1) 
 
@@ -160,11 +162,6 @@ class proSVD:
         # Gv_1 = V[:, :self.k] @ Tv.T
         self.Q = Q_hat @ Gu_1
         self.B = Tu @ np.diag(diag[:self.k]) @ Tv.T
-<<<<<<< HEAD
-=======
-
-        # Gv_1 = V[:, :self.k] @ Tv.T
->>>>>>> 39db6206fe683089720eab7f93129ac8b8f8db61
         # self.W = W_hat @ Gv_1
     
         # Getting true SVD basis
@@ -172,8 +169,4 @@ class proSVD:
             U, S, V = np.linalg.svd(self.B, full_matrices=False)
             self.U = self.Q @ U
             self.S = S
-<<<<<<< HEAD
             # self.Wt = self.W @ V
-=======
-            # self.Wt = self.W @ V
->>>>>>> 39db6206fe683089720eab7f93129ac8b8f8db61
