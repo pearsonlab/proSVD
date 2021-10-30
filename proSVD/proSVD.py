@@ -1,5 +1,6 @@
 # TODO: add preprocessing functions to proSVD? 
 #       demeaning, normalizing, filters, etc.
+#       add 2 function inputs: preprocessing functions and post update
 
 import numpy as np
 from scipy.linalg import rq
@@ -13,10 +14,11 @@ class proSVD:
     # trueSVD      bool    - whether or not basis should be rotated to true SVD basis (stored as attribute U)
     # history      int     - 0 indicates no history will be kept, 
     #                       >0 indicates how many bases/singular values to keep
-    def __init__(self, k, w_len=1, w_shift=1, decay_alpha=1, trueSVD=False, history=0, track_diff=True):
+    # track_diff   bool    - whether you want to keep a diff 
+    def __init__(self, k, w_len=1, w_shift=None, decay_alpha=1, trueSVD=False, history=0, track_diff=True):
         self.k = k
         self.w_len = w_len
-        self.w_shift = w_shift
+        self.w_shift = w_shift if w_shift else w_len # defauls to nonoverlapping chunks of w_len cols
         self.decay_alpha = decay_alpha
         self.trueSVD = trueSVD
         self.history = history
@@ -24,7 +26,7 @@ class proSVD:
         self.proj_mean = np.zeros((k))  # for global mean of projected data (to get projected variance)
 
     
-    def initialize(self, A_init):
+    def initialize(self, A_init, Q_init=None, B_init=None):
         ## Ainit just for initialization, so l1 is A.shape[1]
         n, l1 = A_init.shape
 
@@ -36,11 +38,9 @@ class proSVD:
         # initialize Q and B from QR of A_init, W as I
         Q, B = np.linalg.qr(A_init, mode='reduced')
         ## TODO: other init strategies?
-        # u, s, v = np.linalg.svd(A_init, full_matrices=False)
-        # Q, B = u, np.diag(s) @ v
-        
-        self.Q = Q[:, :self.k]
-        self.B = B[:self.k, :l1]
+        self.Q = Q[:, :self.k] if Q_init is None else Q_init
+        self.B = B[:self.k, :l1] if B_init is None else B_init
+
         # self.W = np.eye(l1) # TODO: figure out if we want W
         if self.trueSVD:
             U_init, S_init, _ = np.linalg.svd(A_init, full_matrices=False)
@@ -62,33 +62,34 @@ class proSVD:
                 self.Us[:, :, 0] = self.U
                 self.Ss = np.zeros((self.k, self.history+1))
                 self.Ss[:, 0] = self.S
-        self.t = 1
+        self.t = 1 
         
-    
-    # update the SVD with some given data
-    # A should be in shape (n, t) (getting new colums of data)
-    # optional chunk size should be > 0, indicates how many nonoverlapping cols to process
-    # TODO: get rid of chunk size with w_len and w_shift
-    def updateSVD(self, A, chunk_size=0):
-        n, s = A.shape
+    # method to do common run through data (replaces pro.updateSVD())
+    # initializes and updates proSVD
+    def run(self, A, num_init, num_iters=None, ref_basis=None):
+        n, T = A.shape
+        A_init = A[:, :num_init]
+        self.initialize(A_init)
+
+        if num_iters is None: # do iters to go through once
+            num_iters = np.floor((A.shape[1] / self.w_shift) - (self.w_len / self.w_shift)).astype('int')
+        update_times = np.arange(1, num_iters) * self.w_shift # index of when updates happen
+        update_times += num_init
         
-        if chunk_size == 0:  # process all of A (as one big chunk) and update basis once
-            num_iter = 1
-            l = s
-        else:  # process A with smaller chunks at a time, update basis multiple times
-            num_iter = int(np.ceil(s / chunk_size))  # iters to go through data once
-            l = chunk_size
-        
-        t = 0
-        for i in range(num_iter):
-            
-            A_plus = A[:, t:t+l]
-            t = t+l
+        # for svd and prosvd projections, variance explained
+        projs = [np.zeros((self.k, A.shape[1]-num_init)) for i in range(2)]  # subtract l1 - init proj
+        frac_vars = [np.zeros(projs[i].shape) for i in range(2)]
+        # derivatives
+        derivs = np.zeros((self.k, num_iters))
+
+        # run proSVD online
+        for i, t in enumerate(update_times): 
+            dat = A[:, t:t+self.w_len]
 
             if self.track_diff:
                 Q_prev = self.Q
             # ------ Update ------ #
-            self._updateSVD(A_plus)
+            self._updateSVD(dat, ref_basis)
             # -------------------- #
             if self.track_diff:
                 self.curr_diff = Q_prev - self.Q
@@ -100,12 +101,21 @@ class proSVD:
                     self.Us[:, :, self.t] = self.U
                     self.Ss[:, self.t] = self.S
                     # self.Wts[:, :, self.t] = self.Wt
-
             self.t += 1
+
+            # getting proj and variance explained
+            for j, basis in enumerate([self.U, self.Q]):
+                projs[j][:, t:t+self.w_len] = basis.T @ dat
+                curr_proj_vars = projs[j][:, :t-num_init].var(axis=1)[:, np.newaxis]
+                total_vars = A[:, :t].var(axis=1)
+                frac_vars[j][:, t:t+self.w_len] = curr_proj_vars / total_vars.sum()
+            # proSVD basis derivatives
+            derivs[:, i] = np.linalg.norm(self.curr_diff, axis=0)
+
+        return projs, frac_vars, derivs
         
-    
     # internal func to do a single iter of basis update given some data A
-    def _updateSVD(self, A):
+    def _updateSVD(self, A, ref_basis=None):
         _, l = A.shape
         ## Update our basis vectors based on a chunk of new data
         ## Currently assume we get chunks as specificed in self.l
@@ -140,9 +150,13 @@ class proSVD:
         diag *= self.decay_alpha
         
         # Orthgonal Procrustes singular basis for Q (getting Tu)
-        # Mu = self.Q.T @ Q_hat @ U[:, :self.k]
-        # faster getting Mu - just the first k rows of U1??
-        Mu = U[:self.k, :self.k]
+        # solution for a 'reference' basis
+        if ref_basis is not None:
+            Mu = ref_basis.T @ Q_hat @ U[:, :self.k]
+        else: # solution for 
+            # Mu = self.Q.T @ Q_hat @ U[:, :self.k]
+            # faster getting Mu - just the first k rows of U1??
+            Mu = U[:self.k, :self.k]
 
         U_tilda, _, V_tilda_T = np.linalg.svd(Mu, full_matrices=False)
         Tu = U_tilda @ V_tilda_T
@@ -171,3 +185,40 @@ class proSVD:
             self.U = self.Q @ U
             self.S = S
             # self.Wt = self.W @ V
+
+
+   # update the SVD with some given data (DEPRECATED)
+    # A should be in shape (n, t) (getting new colums of data)
+    def updateSVD(self, A, ref_basis=None, chunk_size=0):
+        n, s = A.shape
+        
+        if chunk_size == 0:  # process all of A (as one big chunk) and update basis once
+            num_iter = 1
+            l = s
+        else:  # process A with smaller chunks at a time, update basis multiple times
+            num_iter = int(np.ceil(s / chunk_size))  # iters to go through data once
+            l = chunk_size
+        
+        t = 0
+        for i in range(num_iter):
+            
+            A_plus = A[:, t:t+l]
+            t = t+l
+
+            if self.track_diff:
+                Q_prev = self.Q
+            # ------ Update ------ #
+            self._updateSVD(A_plus, ref_basis)
+            # -------------------- #
+            if self.track_diff:
+                self.curr_diff = Q_prev - self.Q
+
+            if self.history:
+                self.Qs[:, :, self.t] = self.Q
+                # self.Ws[:, :, self.t] = self.W
+                if self.trueSVD:
+                    self.Us[:, :, self.t] = self.U
+                    self.Ss[:, self.t] = self.S
+                    # self.Wts[:, :, self.t] = self.Wt
+
+            self.t += 1
