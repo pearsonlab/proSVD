@@ -40,7 +40,7 @@ ax.plot(np.cumsum(var) / np.sum(var))
 # ax.set_xlim((0, 10))
 
 # %% proSVD
-%%time
+##%%time
 # PROTOTYPE FOR DOING ANALYSIS ON ANY DATASET
 # params
 k = 10  # reduced dim
@@ -52,31 +52,22 @@ update_times = np.arange(1, num_iters) * l # index of when updates happen
 
 # init
 A_init = data[:, :l1]
-pro = proSVD(k, history=num_iters, trueSVD=True)
+pro = proSVD(k, w_len=l, w_shift=None, decay_alpha=decay, history=num_iters, trueSVD=True)
 pro.initialize(A_init)
+projs, frac_vars, derivs = pro.run(data, l1)
 
-# for svd and prosvd projections, variance explained
-projs = [np.zeros((k, data.shape[1]-l1)) for i in range(2)]  # subtract l1 - init proj
-frac_vars = [np.zeros(projs[i].shape) for i in range(2)]
-# derivatives
-derivs = np.zeros((k, num_iters))
+fig, ax = plt.subplots() 
+ax.plot(derivs.T)
+u, s, v = np.linalg.svd(data, full_matrices=False)
+u = u[:, :k]
+basis = pro.Q
+res1 = np.linalg.norm(basis - u @ u.T @ basis)
+res2 = np.linalg.norm(u - basis @ basis.T @ u)
 
-# run proSVD online
-for i, t in enumerate(update_times): 
-    dat = data[:, t:t+l]
-    pro.updateSVD(dat)
-    # getting proj and variance explained
-    for j, basis in enumerate([pro.U, pro.Q]):
-        projs[j][:, t:t+l] = basis.T @ dat
-        curr_proj_vars = projs[j][:, :t-l1].var(axis=1)[:, np.newaxis]
-        total_vars = data[:, :t].var(axis=1)
-        frac_vars[j][:, t:t+l] = curr_proj_vars / total_vars.sum()
-    # proSVD basis derivatives
-    derivs[:, i] = np.linalg.norm(pro.curr_diff, axis=0)
-
+print(res1, res2)
 
 # %% incSFA (emphasis on SLOW)
-%%time
+##%%time
 num_iters = 1000
 
 incsfa = mdp.nodes.IncSFANode(input_dim=data.shape[0], output_dim=k)
@@ -97,7 +88,7 @@ for i in range(num_iters):
 print('incSFA:\t', np.mean(times)*1000, np.std(times)*1000)
 
 # %% CCI-PCA
-%%time
+##%%time
 # num_iters = 1000
 
 ccipca = mdp.nodes.CCIPCANode(input_dim=data.shape[0], output_dim=k)

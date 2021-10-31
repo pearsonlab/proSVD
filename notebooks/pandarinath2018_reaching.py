@@ -67,7 +67,7 @@ def get_spikes(file_locs, bin_size=15):
 
 file_dir = '/hdd/pgupta/lfads-neural-stitching-reproduce/export_v05_broadbandRethreshNonSorted_filtered/'
 files = os.listdir(file_dir) # all sessions
-files = [files[0]] # 1 session
+files = [files[1]] # 1 session
 # files = files[:2] # more sessions
 file_locs = [file_dir + files[i] for i in range(len(files))]
 
@@ -120,42 +120,82 @@ for currsess in all_sess:
 
 #%% doing streamingSVD on smoothed spikes, projecting spikes onto the learned subspace
 
+# ref_basis = pro.Q # None
+
+# # PROTOTYPE FOR DOING ANALYSIS ON ANY DATASET
+# # params
+# k = 6  # reduced dim
+# l = 10    # num cols processed per iter
+# decay = 1 # 'forgetting' to track nonstationarity. 1 = no forgetting
+# l1 = k   # num cols init
+# num_iters = np.floor((data.shape[1] - l1) / l).astype('int') # num iters to go through data once
+# update_times = np.arange(1, num_iters) * l # index of when updates happen
+
+# # init
+# A_init = data[:, :l1]
+# pro = proSVD(k, history=num_iters, trueSVD=True)
+
+# # init strategies:
+# # svd
+# # u, s, v = np.linalg.svd(A_init, full_matrices=False)
+# # Q_init = u[:, :k] @ np.diag(s[:k]) # None
+# # B_init = v[:k, :] # None
+# # random orthogonal decomposition
+# # Q_init = np.random.normal(size=(data.shape[0], k))
+# # Q_init, _ = np.linalg.qr(Q_init)
+# # B_init = Q_init.T @ A_init
+# # init from previous pro (make sure it exists!)
+# # Q_init, B_init = Q_prev, B_prev
+# # pro.initialize(A_init, Q_init=Q_init, B_init=B_init)
+# pro.initialize(A_init) # regular init
+
+# # for svd and prosvd projections, variance explained
+# projs = [np.zeros((k, data.shape[1]-l1)) for i in range(2)]  # subtract l1 - init proj
+# frac_vars = [np.zeros(projs[i].shape) for i in range(2)]
+# # derivatives
+# derivs = np.zeros((k, num_iters))
+
+# # run proSVD online
+# for i, t in enumerate(update_times): 
+#     dat = data[:, t:t+l]
+#     pro.updateSVD(dat, ref_basis=ref_basis)
+#     # getting proj and variance explained
+#     for j, basis in enumerate([pro.U, pro.Q]):
+#         projs[j][:, t:t+l] = basis.T @ dat
+#         curr_proj_vars = projs[j][:, :t-l1].var(axis=1)[:, np.newaxis]
+#         total_vars = data[:, :t].var(axis=1)
+#         frac_vars[j][:, t:t+l] = curr_proj_vars / total_vars.sum()
+#     # proSVD basis derivatives
+#     derivs[:, i] = np.linalg.norm(pro.curr_diff, axis=0)
+
+#%%
 # PROTOTYPE FOR DOING ANALYSIS ON ANY DATASET
 # params
 k = 6  # reduced dim
-l = 6    # num cols processed per iter
+l = 10    # num cols processed per iter
 decay = 1 # 'forgetting' to track nonstationarity. 1 = no forgetting
 l1 = k   # num cols init
 num_iters = np.floor((data.shape[1] - l1) / l).astype('int') # num iters to go through data once
-update_times = np.arange(1, num_iters) * l # index of when updates happen
 
-# init
 A_init = data[:, :l1]
-pro = proSVD(k, history=num_iters, trueSVD=True)
+pro = proSVD(k, w_len=l, w_shift=None, decay_alpha=decay, history=num_iters, trueSVD=True)
 pro.initialize(A_init)
+projs, frac_vars, derivs = pro.run(data, l1)
 
-# for svd and prosvd projections, variance explained
-projs = [np.zeros((k, data.shape[1]-l1)) for i in range(2)]  # subtract l1 - init proj
-frac_vars = [np.zeros(projs[i].shape) for i in range(2)]
-# derivatives
-derivs = np.zeros((k, num_iters))
+u, s, v = np.linalg.svd(data, full_matrices=False)
+u = u[:, :k]
+basis = pro.Q
+res1 = np.linalg.norm(basis - u @ u.T @ basis)
+res2 = np.linalg.norm(u - basis @ basis.T @ u)
 
-# run proSVD online
-for i, t in enumerate(update_times): 
-    dat = data[:, t:t+l]
-    pro.updateSVD(dat)
-    # getting proj and variance explained
-    for j, basis in enumerate([pro.U, pro.Q]):
-        projs[j][:, t:t+l] = basis.T @ dat
-        curr_proj_vars = projs[j][:, :t-l1].var(axis=1)[:, np.newaxis]
-        total_vars = data[:, :t].var(axis=1)
-        frac_vars[j][:, t:t+l] = curr_proj_vars / total_vars.sum()
-    # proSVD basis derivatives
-    derivs[:, i] = np.linalg.norm(pro.curr_diff, axis=0)
+print(res1, res2)
 
+fig, ax = plt.subplots() 
+ax.plot(derivs.T)
 
 #%%
 # derivs = get_derivs(pro)
+dists = np.linalg.norm(pro.Qs - pro.Q[:, :, np.newaxis], axis=0)
 t = derivs.shape[1]
 
 fig, ax = plt.subplots(1, 3, figsize=(12,4))
@@ -203,57 +243,16 @@ ax[2].plot(frac_vars[0].sum(axis=0)[:t], ls=':', color='k', alpha=0.5)
 
 #%% doing full SVD
 ## %%time
-Us, Ss = get_streamingSVD(data, data.shape[0], l1, l, num_iters, window=False)
+Us, Ss = get_streamingSVD(data, k, l1, l, num_iters, window=False)
 
 #%% looking at stuff
 vals = (Ss[:6, :]**2) / (Ss[:, :]**2).sum(axis=0)
+fig, ax = plt.subplots()
 for i in range(2):
-    plt.plot(frac_vars[i].sum(axis=0)[:t])
-plt.plot(vals.sum(axis=0), ls='--', color='k')
-plt.set(xlabel='bins seen', ylabel='fraction of variance explained')
-plt.legend(labels=['Q', 'U - pro', 'U - dumb streaming'])
-
-# %% projecting each timepoint of neural activity onto the subspace learned for that chunk
-all_projs_stream = np.zeros((pro.Qs.shape[1], pro.Qs.shape[2]*l))
-for i in range(num_iters):
-    Q = pro.Qs[:, :, i] # has first k components
-    if i == 0:
-        curr_neural = data[:, :l1]
-        all_projs_stream[:, :l1] = Q.T @ curr_neural 
-        t = l1
-    else: 
-        if t + l > Us.shape[2] * l:
-            break
-        # aligning neural to Q (depends on l1 and l)
-        curr_neural = data[:, l1+((i-1)*l):l1+(i*l)]
-        
-        # projecting curr_neural onto curr_Q (our tracked subspace) and on full svd u
-        all_projs_stream[:, t:t+l] = Q.T @ curr_neural
-        t += l
-
-all_projs_stream_true = np.zeros((Us.shape[1], Us.shape[2]*l))
-for i in range(Us.shape[2]):
-    Q = Us[:, :, i]
-    if i == 0:
-        curr_neural = data[:, :l1]
-        all_projs_stream_true[:, :l1] = Q.T @ curr_neural
-        t = l1
-    else: 
-        if t + l > Us.shape[2] * l:
-            break
-        # aligning neural to Q (depends on l1 and l)
-        curr_neural = data[:, l1+((i-1)*l):l1+(i*l)]
-        
-        # projecting curr_neural onto curr_Q (our tracked subspace) and on full svd u
-        all_projs_stream_true[:, t:t+l] = Q.T @ curr_neural
-        t += l
-
-num_remove = all_projs_stream.shape[1] - t
-num_remove = all_projs_stream_true.shape[1] - t
-
-if num_remove > 0:
-    all_projs_stream_true = all_projs_stream_true[:, :-num_remove]
-    all_projs_stream = all_projs_stream[:, :-num_remove]
+    ax.plot(frac_vars[i].sum(axis=0)[:t])
+ax.plot(vals.sum(axis=0), ls='--', color='k')
+ax.set(xlabel='bins seen', ylabel='fraction of variance explained')
+ax.legend(labels=['Q', 'U - pro', 'U - dumb streaming'])
 
 # np.savez('neurips/ssSVD_results.npz', l1=l1, k=k, spikes=spikes, bin_size=bin_size, Us=Us, Qs=Qs)
 

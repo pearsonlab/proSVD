@@ -6,13 +6,14 @@ from matplotlib import cm; cmap = cm.Dark2
 from scipy.ndimage import gaussian_filter1d
 
 from proSVD.proSVD import proSVD
+import proSVD.utils as utils
 
 #%% switching between different spectral regimes
 np.random.seed(100)
 n = 6
 embed_dim = 60 # "neurons"
-t_latent = [300]  # time
-regime_changes = 10
+t_latent = [200]  # time
+regime_changes = 15
 
 fig, ax = plt.subplots(len(t_latent), 3, figsize=(20,4*len(t_latent)),
             gridspec_kw={'hspace': 0.5, 'wspace': 0.3})
@@ -30,7 +31,7 @@ for row, curr_t in enumerate(t_latent):
                         [0, 0, 1, 1, 0, 1]])
 
     num_regimes = Ss_true.shape[0]
-    noise = 0 # np.random.normal(scale=.05, size=(n,curr_t))
+    noise = np.random.normal(scale=.05, size=(n,curr_t))
     regimes = [[] for i in range(num_regimes)]
     for i in range(num_regimes):
         S_true = Ss_true[i, :]
@@ -62,39 +63,29 @@ for row, curr_t in enumerate(t_latent):
     k = n
     l1 = xs.shape[0]
     l = 1
+    decay = 1
     num_iters = np.ceil((xs.shape[1] - l1) / l).astype('int')
     update_times = np.arange(1, num_iters) * l # index of when updates happen
 
     # window for explained vars (TODO: also use this for keeping window of history/projs)
     window = int(curr_t / 1)
 
+    # create object
+    pro = proSVD(k, w_len=l, w_shift=None, decay_alpha=decay, history=num_iters, trueSVD=True)
     A_init = xs[:, :l1]
-    pro = proSVD(k, history=num_iters, trueSVD=True)
-    pro.initialize(A_init)
-
-    projs = [np.zeros((k, xs.shape[1]-l1)) for i in range(2)]  # subtract l1 - init proj
-    frac_vars = [np.zeros(projs[i].shape) for i in range(2)]
-    derivs = np.zeros((k, num_iters))
-
-    for i, t in enumerate(update_times):
-        # proSVD update
-        dat = xs[:, t:t+l]
-        pro.updateSVD(dat)
-        derivs[:, i] = np.linalg.norm(pro.curr_diff, axis=0)
-
-        # getting proj and variance explained
-        for j, basis in enumerate([pro.U, pro.Q]):
-            projs[j][:, t:t+l] = basis.T @ dat
-            # var explained over window
-            if window > 0 and (t - l1) > window: # process more data than window before getting var
-                curr_proj_vars = projs[j][:, t-l1-window:t-l1].var(axis=1)[:, np.newaxis]
-                total_vars = xs[:, t-window:t].var(axis=1)
-                frac_vars[j][:, t:t+l] = curr_proj_vars / total_vars.sum()
-            else:  # cumulative variance
-                curr_proj_vars = projs[j][:, :t].var(axis=1)[:, np.newaxis]
-                total_vars = xs[:, l1:].var(axis=1)
-                frac_vars[j][:, t:t+l] = curr_proj_vars / total_vars.sum()
-
+    # init strategies:
+    # svd
+    # u, s, v = np.linalg.svd(A_init, full_matrices=False)
+    # Q_init = u[:, :k] # None
+    # B_init = np.diag(s[:k]) @ v[:k, :] # None
+    # random orthogonal decomposition
+    # Q_init = np.random.normal(size=(embed_dim, k))
+    # Q_init, B_init = np.linalg.qr(Q_init)
+    # B_init = Q_init.T @ A_init
+    # pro.initialize(A_init, Q_init=Q_init, B_init=B_init)
+    pro.initialize(A_init) # regular init
+    # run it
+    projs, frac_vars, derivs = pro.run(xs, l1)
     Qts, Scoll, Qcoll = (pro.Us, pro.Ss, pro.Qs)
 
 
@@ -150,7 +141,7 @@ for row, curr_t in enumerate(t_latent):
 
         # sum of vars for particular dimensions
         dims_to_sum = int(n / num_regimes) # assuming first regime is in first n / num_regimes dims
-        labels = ['sum first 3 dims', 'sum last 3 dims']
+        labels = ['sum 1,2 dims', 'sum 3,4 dims', 'sum 5,6 dims']
         start = 0
         for p in range(num_regimes): 
             currax.plot(frac_vars[j][start:start+dims_to_sum, :t].sum(axis=0), lw=1.5,
@@ -174,19 +165,28 @@ for row, curr_t in enumerate(t_latent):
 
     # dotted line indicating regime change
     # signal
-    
     for j, currax in enumerate(ax[row, :]):
-        z=1 if j==0 else l
-        for lineloc in [(curr_t*(i+1))/z for i in range(regime_changes+1)]:
-            lineloc += l1
+        for lineloc in [(curr_t*(i+1))/l for i in range(regime_changes+1)]:
+            if j == 0:
+                lineloc *= l
             currax.axvline(lineloc, ls='--', color='grey', alpha=.6)
         
-
 ax[0, 1].legend(loc='upper right')
 axtwin.legend()
 plt.suptitle('streaming SVD does not clearly identify spectral regime changes',
              y=1.12)
 
 # plt.savefig('stream_svd_problem.png', bbox_inches='tight')
+
+u, s, v = np.linalg.svd(xs, full_matrices=False)
+u = u[:, :k]
+basis = pro.U
+res1 = np.linalg.norm(basis - u @ u.T @ basis)
+res2 = np.linalg.norm(u - basis @ basis.T @ u)
+
+print(res1, res2)
+
+fig, ax = plt.subplots() 
+ax.plot(derivs.T)
 
 # %%
