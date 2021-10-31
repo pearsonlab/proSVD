@@ -14,7 +14,7 @@ $ pip install .
 - check correctness of init with with some other basis
   - use this to determine the alignment of some "hypothesis" subspace with the data?
 - artefact rejection with online ICA (ORICA)?
-- streaming preprocessing within proSVD?
+- add input functions to pro.run() to run before (e.g. preprocessing) and after (e.g. project onto new subspace) each update 
 - do we care about W???
 - rename repo to proSVD
 

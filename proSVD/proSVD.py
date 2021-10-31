@@ -1,6 +1,6 @@
 # TODO: add preprocessing functions to proSVD? 
 #       demeaning, normalizing, filters, etc.
-#       add 2 function inputs: preprocessing functions and post update
+#       add 2 function inputs: data preprocessing functions and post update functions
 
 import numpy as np
 from scipy.linalg import rq
@@ -18,7 +18,7 @@ class proSVD:
     def __init__(self, k, w_len=1, w_shift=None, decay_alpha=1, trueSVD=False, history=0, track_diff=True):
         self.k = k
         self.w_len = w_len
-        self.w_shift = w_shift if w_shift else w_len # defauls to nonoverlapping chunks of w_len cols
+        self.w_shift = w_len if w_shift is None else w_shift # defauls to nonoverlapping chunks of w_len cols
         self.decay_alpha = decay_alpha
         self.trueSVD = trueSVD
         self.history = history
@@ -65,14 +65,14 @@ class proSVD:
         self.t = 1 
         
     # method to do common run through data (replaces pro.updateSVD())
-    # initializes and updates proSVD
+    # make sure to pro.initialize() first!
+    # inputs: data A, number of observations to init with
+    #        optional num_iters, defaults to self.w_shift going through once
+    # updates proSVD 
+    # outputs: projections, variance explained, derivatives 
     def run(self, A, num_init, num_iters=None, ref_basis=None):
-        n, T = A.shape
-        A_init = A[:, :num_init]
-        self.initialize(A_init)
-
         if num_iters is None: # do iters to go through once
-            num_iters = np.floor((A.shape[1] / self.w_shift) - (self.w_len / self.w_shift)).astype('int')
+            num_iters = np.floor(((A.shape[1]-num_init) / self.w_shift) - (self.w_len / self.w_shift)).astype('int')
         update_times = np.arange(1, num_iters) * self.w_shift # index of when updates happen
         update_times += num_init
         
@@ -106,8 +106,8 @@ class proSVD:
             # getting proj and variance explained
             for j, basis in enumerate([self.U, self.Q]):
                 projs[j][:, t:t+self.w_len] = basis.T @ dat
-                curr_proj_vars = projs[j][:, :t-num_init].var(axis=1)[:, np.newaxis]
-                total_vars = A[:, :t].var(axis=1)
+                curr_proj_vars = projs[j][:, :t].var(axis=1)[:, np.newaxis]
+                total_vars = A[:, num_init:t].var(axis=1)
                 frac_vars[j][:, t:t+self.w_len] = curr_proj_vars / total_vars.sum()
             # proSVD basis derivatives
             derivs[:, i] = np.linalg.norm(self.curr_diff, axis=0)
