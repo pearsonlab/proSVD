@@ -19,7 +19,7 @@ def get_spikes(file_locs, bin_size=15):
         mat_contents = sio.loadmat(file_loc, struct_as_record=False, squeeze_me=True)  
         data = mat_contents['data']
 
-        align_to = 'GoCue' # 'Move' # 'GoCue' #
+        align_to = 'TargetOnset' # 'GoCue' # 'Move'
         num_steps = 1000
         num_trials = data.nTrials
 
@@ -67,15 +67,15 @@ def get_spikes(file_locs, bin_size=15):
 
 file_dir = '/hdd/pgupta/lfads-neural-stitching-reproduce/export_v05_broadbandRethreshNonSorted_filtered/'
 files = os.listdir(file_dir) # all sessions
-files = [files[1]] # 1 session
-# files = files[:2] # more sessions
+# files = [files[1]] # 1 session
+files = files[:2] # more sessions
 file_locs = [file_dir + files[i] for i in range(len(files))]
 
 bin_size = 15 # in ms
 all_sess = get_spikes(file_locs, bin_size=bin_size)
 data = all_sess[0]
-for currsess in all_sess:
-    data = np.append(data, currsess, axis=1)
+for i in range(1, len(all_sess)):
+    data = np.append(data, all_sess[i], axis=1)
 
 #%% getting ordered spikes
 # spikes_directions = [[] for i in range(len(reach_labels))]
@@ -174,7 +174,7 @@ for currsess in all_sess:
 k = 6  # reduced dim
 l = 10    # num cols processed per iter
 decay = 1 # 'forgetting' to track nonstationarity. 1 = no forgetting
-l1 = k   # num cols init
+l1 = 66   # num cols init
 num_iters = np.floor((data.shape[1] - l1) / l).astype('int') # num iters to go through data once
 
 A_init = data[:, :l1]
