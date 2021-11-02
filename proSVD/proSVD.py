@@ -14,15 +14,15 @@ class proSVD:
     # trueSVD      bool    - whether or not basis should be rotated to true SVD basis (stored as attribute U)
     # history      int     - 0 indicates no history will be kept, 
     #                       >0 indicates how many bases/singular values to keep
-    # track_diff   bool    - whether you want to keep a diff 
-    def __init__(self, k, w_len=1, w_shift=None, decay_alpha=1, trueSVD=False, history=0, track_diff=True):
+    # track_prev   bool    - whether you want to keep the previous Q (incurs copying - better way to do this?)
+    def __init__(self, k, w_len=1, w_shift=None, decay_alpha=1, trueSVD=False, history=0, track_prev=True):
         self.k = k
         self.w_len = w_len
         self.w_shift = w_len if w_shift is None else w_shift # defauls to nonoverlapping chunks of w_len cols
         self.decay_alpha = decay_alpha
         self.trueSVD = trueSVD
         self.history = history
-        self.track_diff = track_diff
+        self.track_prev = track_prev
         self.proj_mean = np.zeros((k))  # for global mean of projected data (to get projected variance)
 
     
@@ -72,9 +72,8 @@ class proSVD:
     # outputs: projections, variance explained, derivatives 
     def run(self, A, num_init, num_iters=None, ref_basis=None):
         if num_iters is None: # do iters to go through once
-            num_iters = np.floor(((A.shape[1]-num_init) / self.w_shift) - (self.w_len / self.w_shift)).astype('int')
-        update_times = np.arange(1, num_iters) * self.w_shift # index of when updates happen
-        update_times += num_init
+            num_iters = np.floor((A.shape[1] - num_init - self.w_len)/self.w_shift).astype('int')
+        update_times = np.arange(num_init, num_iters*self.w_shift, self.w_len) # index of when updates happen (not including init)
         
         # for svd and prosvd projections, variance explained
         projs = [np.zeros((self.k, A.shape[1]-num_init)) for i in range(2)]  # subtract l1 - init proj
@@ -86,23 +85,13 @@ class proSVD:
         for i, t in enumerate(update_times): 
             dat = A[:, t:t+self.w_len]
 
-            if self.track_diff:
-                Q_prev = self.Q
-            # ------ Update ------ #
+            # TODO: run should take user input pre/postupdate functions
+            # they should be executed here
+            self.preupdate()
             self._updateSVD(dat, ref_basis)
-            # -------------------- #
-            if self.track_diff:
-                self.curr_diff = Q_prev - self.Q
+            self.postupdate()
 
-            if self.history:
-                self.Qs[:, :, self.t] = self.Q
-                # self.Ws[:, :, self.t] = self.W
-                if self.trueSVD:
-                    self.Us[:, :, self.t] = self.U
-                    self.Ss[:, self.t] = self.S
-                    # self.Wts[:, :, self.t] = self.Wt
-            self.t += 1
-
+            # TODO: move this to postupdate
             # getting proj and variance explained
             for j, basis in enumerate([self.U, self.Q]):
                 projs[j][:, t:t+self.w_len] = basis.T @ dat
@@ -110,13 +99,12 @@ class proSVD:
                 total_vars = A[:, num_init:t].var(axis=1)
                 frac_vars[j][:, t:t+self.w_len] = curr_proj_vars / total_vars.sum()
             # proSVD basis derivatives
-            derivs[:, i] = np.linalg.norm(self.curr_diff, axis=0)
+            derivs[:, i] = np.linalg.norm(self.Q-self.Q_prev, axis=0)
 
         return projs, frac_vars, derivs
         
     # internal func to do a single iter of basis update given some data A
     def _updateSVD(self, A, ref_basis=None):
-        _, l = A.shape
         ## Update our basis vectors based on a chunk of new data
         ## Currently assume we get chunks as specificed in self.l
         ## QR decomposition of new data
@@ -153,7 +141,7 @@ class proSVD:
         # solution for a 'reference' basis
         if ref_basis is not None:
             Mu = ref_basis.T @ Q_hat @ U[:, :self.k]
-        else: # solution for 
+        else: # solution for minimum change from previous basis
             # Mu = self.Q.T @ Q_hat @ U[:, :self.k]
             # faster getting Mu - just the first k rows of U1??
             Mu = U[:self.k, :self.k]
@@ -178,14 +166,31 @@ class proSVD:
         self.Q = Q_hat @ Gu_1
         self.B = Tu @ np.diag(diag[:self.k]) @ Tv.T
         # self.W = W_hat @ Gv_1
-    
+
+
+    # preupdate
+    def preupdate(self):
+        # make copy to keep previous basis
+        if self.track_prev:
+            self.Q_prev = np.copy(self.Q)
+
+    # postupdate
+    def postupdate(self):
         # Getting true SVD basis
         if self.trueSVD:
             U, S, V = np.linalg.svd(self.B, full_matrices=False)
             self.U = self.Q @ U
             self.S = S
             # self.Wt = self.W @ V
-
+        # updating history
+        if self.history:
+            self.Qs[:, :, self.t] = self.Q
+            # self.Ws[:, :, self.t] = self.W
+            if self.trueSVD:
+                self.Us[:, :, self.t] = self.U
+                self.Ss[:, self.t] = self.S
+                # self.Wts[:, :, self.t] = self.Wt
+        self.t += 1
 
    # update the SVD with some given data (DEPRECATED)
     # A should be in shape (n, t) (getting new colums of data)
@@ -205,13 +210,9 @@ class proSVD:
             A_plus = A[:, t:t+l]
             t = t+l
 
-            if self.track_diff:
-                Q_prev = self.Q
             # ------ Update ------ #
             self._updateSVD(A_plus, ref_basis)
             # -------------------- #
-            if self.track_diff:
-                self.curr_diff = Q_prev - self.Q
 
             if self.history:
                 self.Qs[:, :, self.t] = self.Q
