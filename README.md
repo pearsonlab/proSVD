@@ -7,8 +7,8 @@ See `notebooks/` for usage.
 
 #### To build:
 ```
-$ git clone https://github.com/pearsonlab/streamingSVD
-$ cd streamingSVD
+$ git clone https://github.com/pearsonlab/proSVD
+$ cd proSVD
 $ pip install .
 ```
 
