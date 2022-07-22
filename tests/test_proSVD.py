@@ -75,7 +75,7 @@ def test_timing(channel_range, chunk_range, iters=20):
     fig.subplots_adjust(wspace=0.3)
     for i, n in enumerate(channel_range):
         times = total_times[i, :]
-        ax.semilogy(chunk_range, times, label='n = {}'.format(n))
+        ax.loglog(chunk_range, times, label='n = {}'.format(n), marker='o')
         ax.set(xlabel='chunk size', ylabel='total time (ms)')
         fig.suptitle('Time to reduce from $n$ dims to $k=6$ dims \n for increasing chunk size (number of columns)',
                 y=1.02)
@@ -149,13 +149,14 @@ def test_recon():
 
 #%%
 def main():
-    test_proSVD()
-    # channel_range = np.array([10, 50, 100, 200])
-    # chunk_range = np.arange(1, 10, 1)
-    # test_timing(channel_range, chunk_range)
+    # test_proSVD()
+    channel_range = np.array([50, 100, 250, 500])
+    chunk_range = np.array([1, 5, 25, 100, 250, 500])
+    test_timing(channel_range, chunk_range)
     # test_W()
     # test_recon()
 
 if __name__ == "__main__":
     main()
 
+#%%
