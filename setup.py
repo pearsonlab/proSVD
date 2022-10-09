@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 setuptools.setup(
 	name="proSVD",
 	version='0.0.1',
-	author="Pranjal Gupta, Anne Draelos",
+	author="Pranjal Gupta",
 	author_email="pranjal.gupta@duke.edu",
 	description="Streaming dimension reduction tools for neural data",
 	long_description=long_description,
