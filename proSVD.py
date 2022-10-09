@@ -67,12 +67,8 @@ class proSVD:
     #        optional num_iters, defaults to self.w_shift going through once
     # updates proSVD 
     # outputs: projections, variance explained, derivatives 
-    def run(self, A, num_init, num_iters=None, ref_basis=None):
-        # getting index of update times
-        if num_iters is None: # do enough iters to go through once
-            num_iters = np.floor((A.shape[1] - num_init - self.w_len)/self.w_shift).astype('int')
-        update_times = np.arange(num_init, num_iters*self.w_shift, self.w_len) # index of when updates happen (not including init)
-        
+    def run(self, A, update_times, ref_basis=None):
+
         # run proSVD online
         for i, t in enumerate(update_times): 
             start, end = t, t+self.w_len
@@ -81,13 +77,13 @@ class proSVD:
             # TODO: run should take user input pre/postupdate functions
             # they should be executed here
             self.preupdate()
-            self._updateSVD(dat, ref_basis)
-            self.postupdate(dat, start, end, i, t, num_init, A)
+            self.updateSVD(dat, ref_basis)
+            self.postupdate()
             
         return
         
     # internal func to do a single iter of basis update given some data A
-    def _updateSVD(self, A, ref_basis=None):
+    def updateSVD(self, A, ref_basis=None):
         ## Update our basis vectors based on a chunk of new data
         ## Currently assume we get chunks as specificed in self.l
         ## QR decomposition of new data
