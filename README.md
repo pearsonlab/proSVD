@@ -3,7 +3,7 @@ Tools for streaming dimension reduction analyses of neural data.
 
 ![alt text](lock-in.gif)
 
-See `notebooks/` for usage.
+See `demos/` for usage.
 
 #### To build:
 ```
@@ -14,7 +14,7 @@ $ pip install .
 
 #### To import:
 ```
-from proSVD.proSVD import proSVD
+from proSVD import proSVD
 ```
 
 Under active development! Please contact pranjal.gupta@duke.edu for any inquiries. 
