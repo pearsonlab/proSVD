@@ -5,11 +5,9 @@ Tools for streaming dimension reduction analyses of neural data.
 
 See `demos/` for usage.
 
-#### To build:
+#### To install:
 ```
-$ git clone https://github.com/pearsonlab/proSVD
-$ cd proSVD
-$ pip install .
+$ pip install proSVD
 ```
 
 #### To import:
