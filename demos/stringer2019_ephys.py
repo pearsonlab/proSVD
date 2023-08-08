@@ -10,7 +10,7 @@ from scipy import io as sio
 from scipy.ndimage import gaussian_filter1d
 from sklearn import random_projection as rp
 
-from proSVD.proSVD import proSVD
+from proSVD import proSVD
 
 #%% loading processed matlab data
 # one mouse
@@ -68,9 +68,7 @@ svd_times = np.array(svd_times) * 1000 / chunk_size
 
 
 #%% running proSVD
-%%time
-
-k = 10  
+k = 10 
 l1 = k      # cols to init
 l = 1       # num cols processed per iter (1 datapoint)
 decay = 1   # 'forgetting' 

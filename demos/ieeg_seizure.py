@@ -6,8 +6,8 @@ from numpy.lib import utils
 import scipy.io as sio
 
 import mdp # for incremental sfa, ica, pca
-from proSVD.proSVD import proSVD
-from proSVD.utils import get_derivs
+from proSVD import proSVD
+from pro_utils import get_derivs
 
 # %% data from http://ieeg-swez.ethz.ch/
 # sampled at 512 hz, each file is 3 mins before seizure, seizure, 3 mins after

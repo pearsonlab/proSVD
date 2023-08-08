@@ -10,8 +10,8 @@ from sklearn.metrics.pairwise import euclidean_distances
 from scipy.stats import sem
 from scipy.spatial.distance import pdist
 
-from proSVD.proSVD import proSVD
-from proSVD.utils import embed_data, generate_stable_LDS, get_stable_dynamics_mat
+from proSVD import proSVD
+from pro_utils import embed_data, generate_stable_LDS, get_stable_dynamics_mat
 
 np.set_printoptions(precision=4)
 #%% reduction functions
@@ -219,7 +219,6 @@ X = X_embed[:, :t1]
 plt.plot(X_low.T)
 
 #%% running distortion
-%%time
 iters = 2           # iters for RP
 # rp_range = np.array([10, 50, 100, 500, 1000, 5000])
 # rp_range = np.ceil(np.logspace(1, 4, 30)).astype('int')

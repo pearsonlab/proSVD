@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 import scipy.io as sio
 from scipy.ndimage import gaussian_filter1d
 
-from proSVD.proSVD import proSVD
-from proSVD.utils import get_streamingSVD, get_derivs
+from proSVD import proSVD
+from pro_utils import get_streamingSVD, get_derivs
 
 import os
 
